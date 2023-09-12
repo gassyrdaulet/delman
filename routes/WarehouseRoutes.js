@@ -6,8 +6,7 @@ import {
   getInventory,
   getInventoryDetails,
   newWriteOff,
-} from "../controllers/WareHouseController.js";
-import { check } from "express-validator";
+} from "../controllers/WarehouseController.js";
 
 const router = new Router();
 
