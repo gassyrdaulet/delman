@@ -8,9 +8,23 @@ import OrderRoutes from "./routes/OrderRoutes.js";
 import WarehouseRoutes from "./routes/WarehouseRoutes.js";
 import OrganizationRoutes from "./routes/OrganizationRoutes.js";
 import * as dotenv from "dotenv";
+import https from "https";
+import fs from "fs";
 
 dotenv.config();
+
+const privateKey = fs.readFileSync("./keys/privkey.pem", "utf8");
+const certificate = fs.readFileSync("./keys/cert.pem", "utf8");
+const ca = fs.readFileSync("./keys/chain.pem", "utf8");
+
+const credentials = {
+  key: privateKey,
+  cert: certificate,
+  ca,
+};
+
 const PORT = process.env.PORT ? process.env.PORT : 951;
+const SECURE_PORT = process.env.SECURE_PORT ? process.env.SECURE_PORT : 952;
 
 const app = express();
 app.use(cors());
@@ -29,4 +43,8 @@ app.use("/api/organization/", OrganizationRoutes);
 
 app.listen(PORT, () => {
   console.log(`Сервер активен. Порт: ${PORT}.`);
+});
+const httpsServer = https.createServer(credentials, app);
+httpsServer.listen(SECURE_PORT, () => {
+  console.log(`HTTPS Сервер активен. Порт: ${SECURE_PORT}.`);
 });
