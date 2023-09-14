@@ -64,7 +64,10 @@ export const getOrgInfo = async (req, res) => {
 
 export const editOrgInfo = async (req, res) => {
   try {
-    const { organization } = req.user;
+    const { organization, owner } = req.user;
+    if (!owner) {
+      return res.status(403).json({ message: `Отказано в доступе!` });
+    }
     const { newData } = req.body;
     const updateOrgSQL = `UPDATE organizations SET ? WHERE id = ${organization}`;
     const conn = await mysql.createConnection(dbConfig);
