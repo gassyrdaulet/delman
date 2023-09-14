@@ -310,6 +310,30 @@ export const getUserData = async (req, res) => {
   }
 };
 
+export const editUserData = async (req, res) => {
+  try {
+    const { id } = req.user;
+    const { name, kaspitoken } = req.body;
+    const getUserSQL = `SELECT * FROM users WHERE id = "${id}"`;
+    const updateUserSQL = `UPDATE users SET ? WHERE id = "${id}"`;
+    const conn = await mysql.createConnection(dbConfig);
+    const candidate = (await conn.query(getUserSQL))[0][0];
+    if (!candidate) {
+      await conn.end();
+      return res
+        .status(400)
+        .json({ message: "Пользователь с таким ID не существует!" });
+    }
+    await conn.query(updateUserSQL, { name, kaspitoken });
+    res
+      .status(200)
+      .json({ message: "Вы успешно отредактировали свой аккаунт!" });
+    conn.end();
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка! " + e });
+  }
+};
+
 export const deleteAccount = async (req, res) => {
   try {
     const { id } = req.user;

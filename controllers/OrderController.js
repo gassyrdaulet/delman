@@ -1038,6 +1038,7 @@ export const newOrder = async (req, res) => {
     connUnlock = conn;
     let noGoodError = false;
     const parsedDate = Date.parse(order.date);
+    const kaspiInfo = order?.kaspiinfo;
     const [insertInfo] = await conn.query(insertOrderSQL, {
       history: JSON.stringify([
         {
@@ -1074,6 +1075,7 @@ export const newOrder = async (req, res) => {
       deliverystatus: order.isDelivery ? "new" : "pickup",
       status: "awaiting",
       cashier: order.cashier ? order.cashier : null,
+      kaspiinfo: JSON.stringify(kaspiInfo ? kaspiInfo : {}),
     });
     const { insertId } = insertInfo;
 

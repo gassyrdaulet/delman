@@ -4,7 +4,7 @@ import * as dotenv from "dotenv";
 // console.log(await bcrypt.hash("Lolapopa12345", 5));
 
 dotenv.config();
-const { PRODUCTION } = process.env;
+const { PRODUCTION, SERVICE_ACCOUNT, LOGIN_TOKEN_NAME } = process.env;
 const { dbConfigLocal, dbConfigProd } = config.get("dbConfig");
 const dbConfig = PRODUCTION === "true" ? dbConfigProd : dbConfigLocal;
 
@@ -13,6 +13,11 @@ export const roles = async (req, res, next) => {
     next();
   }
   try {
+    const token = req.headers[LOGIN_TOKEN_NAME.toLowerCase()];
+    if (token === SERVICE_ACCOUNT) {
+      req.user.roles = { manager: true, pickup: true, operator: true };
+      return next();
+    }
     const { id } = req.user;
     const conn = await mysql.createConnection(dbConfig);
     const userDataSQL = `SELECT * FROM users WHERE id = '${id}'`;

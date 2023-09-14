@@ -43,6 +43,130 @@ export const getGoods = async (req, res) => {
   }
 };
 
+export const getRelations = async (req, res) => {
+  try {
+    const { organization } = req.user;
+    const getRelationsSQL = `SELECT * from relations_${organization}`;
+    const getGoodSQL = `SELECT * from goods_${organization} WHERE id = `;
+    const conn = await mysql.createConnection(dbConfig);
+    const relations = (await conn.query(getRelationsSQL))[0];
+    const relationsWithNames = [];
+    await Promise.all(
+      relations.map(async (relation) => {
+        const good = (
+          await conn.query(getGoodSQL + `'${relation.good}'`)
+        )[0][0];
+        if (!good) {
+          relation.good = { id: relation.good, name: "Не найдено" };
+          return;
+        }
+        relation.good = good;
+        relationsWithNames.push(relation);
+      })
+    );
+    conn.end();
+    res.send(relationsWithNames);
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const newRelation = async (req, res) => {
+  try {
+    const { organization, roles } = req.user;
+    if (!roles.manager) {
+      return res.status(403).json({
+        message: `Отказано в доступе! У вас нет прав для создания и редактирования связей.`,
+      });
+    }
+    const { code, good } = req.body;
+    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE id = '${good}'`;
+    const selectRelationSQL = `SELECT * FROM relations_${organization}`;
+    const insertRelationSQL = `INSERT INTO relations_${organization} SET ?`;
+    const conn = await mysql.createConnection(dbConfig);
+    const goodInfo = (await conn.query(selectGoodSQL))[0][0];
+    if (!goodInfo) {
+      conn.end();
+      return res.status(400).json({ message: "Такого товара не существует!" });
+    }
+    const relations = (await conn.query(selectRelationSQL))[0];
+    for (let relation of relations) {
+      if (relation.code === code) {
+        conn.end();
+        return res
+          .status(400)
+          .json({ message: "Такой артикул уже существует!" });
+      }
+    }
+    await conn.query(insertRelationSQL, {
+      code,
+      good,
+    });
+    conn.end();
+    res.status(200).json({ message: "Вы успешно создали новую связь!" });
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const deleteRelation = async (req, res) => {
+  try {
+    const { organization, roles } = req.user;
+    if (!roles.manager) {
+      return res.status(403).json({
+        message: `Отказано в доступе! У вас нет прав для создания и редактирования связей.`,
+      });
+    }
+    const { relationId } = req.body;
+    const getRelationSQL = `SELECT * FROM relations_${organization} WHERE id = ${relationId}`;
+    const deleteRelationSQL = `DELETE FROM relations_${organization} WHERE id = ${relationId}`;
+    const conn = await mysql.createConnection(dbConfig);
+    const relation = (await conn.query(getRelationSQL))[0][0];
+    if (!relation) {
+      conn.end();
+      return res.status(400).json({ message: "Такой связи не найдено!" });
+    }
+    await conn.query(deleteRelationSQL);
+    conn.end();
+    res.status(200).json({ message: "Вы успешно удалили связь!" });
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const editRelation = async (req, res) => {
+  try {
+    const { organization, roles } = req.user;
+    if (!roles.manager) {
+      return res.status(403).json({
+        message: `Отказано в доступе! У вас нет прав для создания и редактирования связей.`,
+      });
+    }
+    const { good, relationId } = req.body;
+    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE id = '${good}'`;
+    const getRelationSQL = `SELECT * FROM relations_${organization} WHERE id = ${relationId}`;
+    const updateRelationSQL = `UPDATE relations_${organization} SET ? WHERE id = ${relationId}`;
+    const conn = await mysql.createConnection(dbConfig);
+    const goodInfo = (await conn.query(selectGoodSQL))[0][0];
+    if (!goodInfo) {
+      conn.end();
+      return res.status(400).json({ message: "Такого товара не существует!" });
+    }
+    const relation = (await conn.query(getRelationSQL))[0][0];
+    if (!relation) {
+      conn.end();
+      return res.status(400).json({ message: "Такой связи не найдено!" });
+    }
+    await conn.query(updateRelationSQL, {
+      good,
+    });
+    conn.end();
+    res.status(200).json({ message: "OK" });
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
 export const getGood = async (req, res) => {
   try {
     const { organization } = req.user;
@@ -51,6 +175,29 @@ export const getGood = async (req, res) => {
     const conn = await mysql.createConnection(dbConfig);
     const good = (await conn.query(getGoodSQL))[0][0];
     conn.end();
+    res.send(good);
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const getGoodByCode = async (req, res) => {
+  try {
+    const { organization } = req.user;
+    const { code } = req.query;
+    const getRelationSQL = `SELECT * from relations_${organization} WHERE code = ${code}`;
+    const getGoodSQL = `SELECT * from goods_${organization} WHERE id = `;
+    const conn = await mysql.createConnection(dbConfig);
+    const relation = (await conn.query(getRelationSQL))[0][0];
+    if (!relation) {
+      conn.end();
+      return res.status(400).json({ message: "Ошибка! Связь не найдена!" });
+    }
+    const good = (await conn.query(getGoodSQL + relation?.good))[0][0];
+    conn.end();
+    if (!good) {
+      return res.status(400).json({ message: "Ошибка! Товар не найден!" });
+    }
     res.send(good);
   } catch (e) {
     res.status(500).json({ message: "Ошибка сервера: " + e });

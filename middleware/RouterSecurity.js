@@ -1,6 +1,6 @@
 import * as dotenv from "dotenv";
 dotenv.config();
-const { SECRET_KEY, LOGIN_TOKEN_NAME } = process.env;
+const { SECRET_KEY, LOGIN_TOKEN_NAME, SERVICE_ACCOUNT } = process.env;
 import jwt from "jsonwebtoken";
 
 export const auth = (req, res, next) => {
@@ -16,6 +16,12 @@ export const auth = (req, res, next) => {
           .status(403)
           .json({ message: "Отказано в доступе.", logout: true });
       }
+    }
+    if (token === SERVICE_ACCOUNT) {
+      req.user = {};
+      req.user.id = req.query?.userId;
+      req.user.organization = req.query?.organizationId;
+      return next();
     }
     const decodedData = jwt.verify(
       token ? token : mobileToken.split(" ")[1],

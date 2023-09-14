@@ -10,6 +10,7 @@ import {
   getUserData,
   deleteAccount,
   editAccount,
+  editUserData,
 } from "../controllers/AuthController.js";
 import { auth } from "../middleware/RouterSecurity.js";
 import { roles } from "../middleware/RoleChecker.js";
@@ -35,7 +36,8 @@ router.post(
 router.get("/ping", auth, ping);
 router.get("/checkorg", [auth, roles], ping);
 router.post("/token", [auth, roles], getToken);
-router.get("/getuserdata", [auth, roles], getUserData);
+router.get("/getuserdata", [auth], getUserData);
+router.post("/edituserdata", [auth], editUserData);
 router.delete("/delete", [auth, roles], deleteAccount);
 router.post("/edit", [auth, roles], editAccount);
 router.post(

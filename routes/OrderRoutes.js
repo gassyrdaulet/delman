@@ -73,17 +73,17 @@ router.get("/getorders", [auth, roles], getOrders);
 router.get("/getdetails", [auth, roles], getOrderDetails);
 router.post(
   "/neworder",
-  [auth, roles, isDeliveryMiddleWare, deliveryChecks],
+  [auth, roles, isDeliveryMiddleWare, ...deliveryChecks],
   newOrder
 );
 router.post(
   "/editorder",
-  [auth, roles, isDeliveryMiddleWare, deliveryChecks],
+  [auth, roles, isDeliveryMiddleWare, ...deliveryChecks],
   editOrder
 );
 router.post(
   "/cashorder",
-  [auth, roles, isDeliveryMiddleWare, deliveryChecks],
+  [auth, roles, isDeliveryMiddleWare, ...deliveryChecks],
   newOrderStraightToTheArchive
 );
 router.post("/senddeliver", [auth, roles], sendDeliver);
