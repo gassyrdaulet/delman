@@ -191,12 +191,16 @@ export const getGoodByCode = async (req, res) => {
     const relation = (await conn.query(getRelationSQL))[0][0];
     if (!relation) {
       conn.end();
-      return res.status(400).json({ message: "Ошибка! Связь не найдена!" });
+      return res
+        .status(400)
+        .json({ message: `Ошибка! Связь не найдена (Артикул: ${code})!` });
     }
     const good = (await conn.query(getGoodSQL + relation?.good))[0][0];
     conn.end();
     if (!good) {
-      return res.status(400).json({ message: "Ошибка! Товар не найден!" });
+      return res.status(400).json({
+        message: `Ошибка! Товар не найден (Товар: ${relation?.good})!`,
+      });
     }
     res.send(good);
   } catch (e) {
