@@ -47,20 +47,20 @@ export const getRelations = async (req, res) => {
   try {
     const { organization } = req.user;
     const getRelationsSQL = `SELECT * from relations_${organization}`;
-    const getGoodSQL = `SELECT * from goods_${organization} WHERE id = `;
+    const getGoodSQL = `SELECT name from goods_${organization} WHERE id = `;
     const conn = await mysql.createConnection(dbConfig);
     const relations = (await conn.query(getRelationsSQL))[0];
     const relationsWithNames = [];
     await Promise.all(
       relations.map(async (relation) => {
-        const good = (
-          await conn.query(getGoodSQL + `'${relation.good}'`)
-        )[0][0];
-        if (!good) {
-          relation.good = { id: relation.good, name: "Не найдено" };
-          return;
+        const { goods } = relation;
+        for (let good of goods) {
+          const goodInfo = (
+            await conn.query(getGoodSQL + `'${good.id}'`)
+          )[0][0];
+          good.name = goodInfo?.name ? goodInfo.name : "Не найдено";
         }
-        relation.good = good;
+        relation.goods = goods;
         relationsWithNames.push(relation);
       })
     );
@@ -79,15 +79,32 @@ export const newRelation = async (req, res) => {
         message: `Отказано в доступе! У вас нет прав для создания и редактирования связей.`,
       });
     }
-    const { code, good } = req.body;
-    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE id = '${good}'`;
+    const { code, goods } = req.body;
+    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE id = `;
     const selectRelationSQL = `SELECT * FROM relations_${organization}`;
     const insertRelationSQL = `INSERT INTO relations_${organization} SET ?`;
+    if (!goods || goods.length === 0) {
+      return res
+        .status(400)
+        .json({ message: `Вы отправили пустой список товаров.` });
+    }
     const conn = await mysql.createConnection(dbConfig);
-    const goodInfo = (await conn.query(selectGoodSQL))[0][0];
-    if (!goodInfo) {
+    let goodNotFound = false;
+    let notFoundId = 0;
+    await Promise.all(
+      goods.map(async (good) => {
+        const goodInfo = (await conn.query(selectGoodSQL + good.id))[0][0];
+        if (!goodInfo) {
+          goodNotFound = true;
+          notFoundId = good.id;
+        }
+      })
+    );
+    if (goodNotFound) {
       conn.end();
-      return res.status(400).json({ message: "Такого товара не существует!" });
+      return res
+        .status(400)
+        .json({ message: `Такого товара не существует! (ID: ${notFoundId})` });
     }
     const relations = (await conn.query(selectRelationSQL))[0];
     for (let relation of relations) {
@@ -100,7 +117,11 @@ export const newRelation = async (req, res) => {
     }
     await conn.query(insertRelationSQL, {
       code,
-      good,
+      goods: JSON.stringify(
+        goods.map((item) => {
+          return { id: item.id, quantity: item.quantity };
+        })
+      ),
     });
     conn.end();
     res.status(200).json({ message: "Вы успешно создали новую связь!" });
@@ -142,15 +163,31 @@ export const editRelation = async (req, res) => {
         message: `Отказано в доступе! У вас нет прав для создания и редактирования связей.`,
       });
     }
-    const { good, relationId } = req.body;
-    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE id = '${good}'`;
+    const { goods, relationId } = req.body;
+    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE id = `;
     const getRelationSQL = `SELECT * FROM relations_${organization} WHERE id = ${relationId}`;
     const updateRelationSQL = `UPDATE relations_${organization} SET ? WHERE id = ${relationId}`;
+    if (!goods || goods.length === 0) {
+      return res
+        .status(400)
+        .json({ message: `Вы отправили пустой список товаров.` });
+    }
     const conn = await mysql.createConnection(dbConfig);
-    const goodInfo = (await conn.query(selectGoodSQL))[0][0];
-    if (!goodInfo) {
+    let goodNotFound = false;
+    let notFoundId = 0;
+    await Promise.all(
+      goods.map(async (good) => {
+        const goodInfo = (await conn.query(selectGoodSQL + good.id))[0][0];
+        if (!goodInfo) {
+          goodNotFound = true;
+        }
+      })
+    );
+    if (goodNotFound) {
       conn.end();
-      return res.status(400).json({ message: "Такого товара не существует!" });
+      return res
+        .status(400)
+        .json({ message: `Такого товара не существует! (ID: ${notFoundId})` });
     }
     const relation = (await conn.query(getRelationSQL))[0][0];
     if (!relation) {
@@ -158,11 +195,16 @@ export const editRelation = async (req, res) => {
       return res.status(400).json({ message: "Такой связи не найдено!" });
     }
     await conn.query(updateRelationSQL, {
-      good,
+      goods: JSON.stringify(
+        goods.map((item) => {
+          return { id: item.id, quantity: item.quantity };
+        })
+      ),
     });
     conn.end();
     res.status(200).json({ message: "OK" });
   } catch (e) {
+    console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };
@@ -181,7 +223,7 @@ export const getGood = async (req, res) => {
   }
 };
 
-export const getGoodByCode = async (req, res) => {
+export const getGoodsByCode = async (req, res) => {
   try {
     const { organization } = req.user;
     const { code } = req.query;
@@ -195,14 +237,27 @@ export const getGoodByCode = async (req, res) => {
         .status(400)
         .json({ message: `Ошибка! Связь не найдена (Артикул: ${code})!` });
     }
-    const good = (await conn.query(getGoodSQL + relation?.good))[0][0];
+    let goodNotFound = false;
+    let notFoundId = 0;
+    const goods = [];
+    await Promise.all(
+      relation.goods.map(async (good) => {
+        const goodInfo = (await conn.query(getGoodSQL + good.id))[0][0];
+        if (!goodInfo) {
+          goodNotFound = true;
+          notFoundId = good.id;
+          return;
+        }
+        goods.push({ ...goodInfo, quantity: good.quantity });
+      })
+    );
     conn.end();
-    if (!good) {
-      return res.status(400).json({
-        message: `Ошибка! Товар не найден (Товар: ${relation?.good})!`,
-      });
+    if (goodNotFound) {
+      return res
+        .status(400)
+        .json({ message: `Такого товара не существует! (ID: ${notFoundId})` });
     }
-    res.send(good);
+    res.send(goods);
   } catch (e) {
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }

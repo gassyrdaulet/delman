@@ -18,7 +18,7 @@ import {
   newRelation,
   deleteRelation,
   editRelation,
-  getGoodByCode,
+  getGoodsByCode,
 } from "../controllers/GoodController.js";
 import formidableMiddleware from "express-formidable";
 import { check } from "express-validator";
@@ -92,7 +92,7 @@ router.post("/newgroup", [auth, roles, ...checkForGroups], newGroup);
 router.post("/deletegroup", [auth, roles], deleteGroup);
 router.post("/deletegood", [auth, roles], deleteGood);
 router.post("/getgood", [auth, roles], getGood);
-router.get("/getgoodbycode", [auth], getGoodByCode);
+router.get("/getgoodsbycode", [auth], getGoodsByCode);
 router.post("/fetchgroup", [auth, roles], fetchGroupInfo);
 router.get("/getbarcode", [auth, roles], getBarcode);
 router.post("/uploadxlsx", [auth, roles, formidableMiddleware()], uploadXLSX);
