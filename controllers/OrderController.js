@@ -648,7 +648,9 @@ export const returnOrder = async (req, res) => {
     const insertSQL = `INSERT INTO warehouse_${organization} SET ?`;
     const deleteInventorySQL = `DELETE FROM warehouse_${organization} WHERE id = `;
     const insertOrderInfoSQL = `INSERT INTO archiveorders_${organization} SET ?`;
-    const lockTableSQL = `LOCK TABLES archiveorders_${organization} WRITE, goods_${organization} WRITE`;
+    const insertOrderInfoSQL2 = `INSERT INTO orders_${organization} SET ?`;
+    const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE ?`;
+    const lockTableSQL = `LOCK TABLES archiveorders_${organization} WRITE, goods_${organization} WRITE, orders_${organization} WRITE`;
     const getOrderInfoSQL = `SELECT * from archiveorders_${organization} WHERE id = `;
     const updateOrderSQL = `UPDATE archiveorders_${organization} SET ? WHERE id = `;
     const conn = await mysql.createConnection(dbConfig);
@@ -708,6 +710,10 @@ export const returnOrder = async (req, res) => {
     returnedOrder.finisheddate = now;
     returnedOrder.status = "returned";
     returnedOrder.deliverystatus = "finished";
+    const [insertInfo] = await conn.query(insertOrderInfoSQL2, returnedOrder);
+    const { insertId } = insertInfo;
+    await conn.query(deleteOrderSQL, { id: insertId });
+    returnedOrder.id = insertId;
     await conn.query(insertOrderInfoSQL, returnedOrder);
     await conn.query(unlockTablesSQL);
     res.status(200).json({ message: `Заказ успешно отменен.` });
