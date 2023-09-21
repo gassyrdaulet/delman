@@ -675,9 +675,11 @@ export const returnOrder = async (req, res) => {
     }
     const { history, goods } = order;
     const now = new Date();
-    if (order.status === "cancelled") {
+    if (order.status === "cancelled" || order.status === "returned") {
       conn.end();
-      res.status(400).json({ message: `Отмененный заказ нельзя вернуть!` });
+      res
+        .status(400)
+        .json({ message: `Отмененный или возвращенный заказ нельзя вернуть!` });
       return;
     }
     await returnGoods(goods, organization, conn, insertIdWarehouse);
