@@ -675,7 +675,11 @@ export const returnOrder = async (req, res) => {
     }
     const { history, goods } = order;
     const now = new Date();
-    if (order.status === "cancelled" || order.status === "returned") {
+    if (
+      order.status === "cancelled" ||
+      order.status === "returned" ||
+      order.wasReturned === 1
+    ) {
       conn.end();
       res
         .status(400)
@@ -690,6 +694,7 @@ export const returnOrder = async (req, res) => {
       cause,
     });
     await conn.query(updateOrderSQL + orderId, {
+      wasReturned: true,
       history: JSON.stringify(history),
     });
     const returnedOrder = order;
