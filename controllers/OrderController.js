@@ -163,7 +163,9 @@ export const getFinishedOrders = async (req, res) => {
   try {
     const { organization } = req.user;
     const { firstDate, secondDate, dateType, delivery } = req.body;
-    const getFinishedOrdersSQL = `SELECT * FROM archiveorders_${organization} WHERE delivery = ${delivery} AND ${
+    const getFinishedOrdersSQL = `SELECT * FROM archiveorders_${organization} WHERE ${
+      delivery ? `delivery = ${delivery} AND` : ""
+    } ${
       dateType ? dateType : "finisheddate"
     } BETWEEN '${firstDate}' AND '${secondDate}'`;
     const conn = await mysql.createConnection(dbConfig);
