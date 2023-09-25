@@ -17,6 +17,7 @@ import {
   issuePickup,
   newOrderStraightToTheArchive,
   isThereOrder,
+  editManager,
 } from "../controllers/OrderController.js";
 
 const router = new Router();
@@ -81,6 +82,7 @@ router.post(
   [auth, roles, isDeliveryMiddleWare, ...deliveryChecks],
   editOrder
 );
+router.post("/editmanager", [auth, roles], editManager);
 router.post(
   "/cashorder",
   [auth, roles, isDeliveryMiddleWare, ...deliveryChecks],

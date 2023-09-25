@@ -74,6 +74,7 @@ export const editOrgInfo = async (req, res) => {
     await conn.query(updateOrgSQL, newData);
     res.status(200).json({ message: "Настройки успешно сохранены." });
   } catch (e) {
+    console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };

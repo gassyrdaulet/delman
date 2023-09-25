@@ -1196,7 +1196,7 @@ export const newOrderStraightToTheArchive = async (req, res) => {
         .status(orderValidatorResult.status)
         .json({ message: orderValidatorResult.message });
     }
-    const { goods, payment, deliveryinfo: delivery, discount } = order;
+    const { goods, payment, discount } = order;
     let tempSum = 0;
     goods.forEach(
       (good) =>
@@ -1579,6 +1579,78 @@ export const editOrder = async (req, res) => {
           piecesSold: result.info.piecesSold,
         });
       })
+    );
+    await conn.query(unlockTablesSQL);
+    conn.end();
+    res.status(200).json({ message: "OK" });
+  } catch (e) {
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const editManager = async (req, res) => {
+  let connUnlock = connUnlockSample;
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "Ошибка!", errors });
+    }
+    const { organization, id: userId, roles } = req.user;
+    if (!roles.editorder) {
+      return res.status(403).json({
+        message: `Отказано в доступе! У вас нет прав для редактирования заявок.`,
+      });
+    }
+    const { managerId, orderId } = req.body;
+    const selectUserSQL = `SELECT * FROM users WHERE id = ${managerId}`;
+    const lockTablesSQL = `LOCK TABLES archiveorders_${organization} WRITE, orders_${organization} WRITE`;
+    const unlockTablesSQL = `UNLOCK TABLES`;
+    const updateOrderSQL = `UPDATE orders_${organization} SET ? WHERE id = `;
+    const updateArchiveOrderSQL = `UPDATE archiveorders_${organization} SET ? WHERE id = `;
+    const selectOrderSQL = `SELECT * FROM orders_${organization} WHERE ?`;
+    const selectArchiveOrderSQL = `SELECT * FROM archiveorders_${organization} WHERE ?`;
+    const conn = await mysql.createConnection(dbConfig);
+    connUnlock = conn;
+    const user = (await conn.query(selectUserSQL))[0][0];
+    if (!user) {
+      if (managerId !== -1) {
+        conn.end();
+        res.status(400).json({
+          message: `Пользователь не найден!`,
+        });
+        return;
+      }
+    }
+    await conn.query(lockTablesSQL);
+    const order = (await conn.query(selectOrderSQL, { id: orderId }))[0][0];
+    const archiveOrder = (
+      await conn.query(selectArchiveOrderSQL, { id: orderId })
+    )[0][0];
+    if (!order && !archiveOrder) {
+      conn.end();
+      res.status(400).json({
+        message: `Нельзя отредактировать этот заказ! Заказ не найден!`,
+      });
+      return;
+    }
+    const isArchive = !order;
+    const { history } = isArchive ? archiveOrder : order;
+    await conn.query(
+      (isArchive ? updateArchiveOrderSQL : updateOrderSQL) + orderId,
+      {
+        history: JSON.stringify([
+          ...history,
+          {
+            action: "edited",
+            user: userId,
+            date: Date.now(),
+          },
+        ]),
+        author: parseInt(managerId),
+      }
     );
     await conn.query(unlockTablesSQL);
     conn.end();
