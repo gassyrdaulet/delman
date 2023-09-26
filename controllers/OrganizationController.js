@@ -72,6 +72,7 @@ export const editOrgInfo = async (req, res) => {
     const updateOrgSQL = `UPDATE organizations SET ? WHERE id = ${organization}`;
     const conn = await mysql.createConnection(dbConfig);
     await conn.query(updateOrgSQL, newData);
+    conn.end();
     res.status(200).json({ message: "Настройки успешно сохранены." });
   } catch (e) {
     console.log(e);
@@ -374,6 +375,7 @@ export const closeCashbox = async (req, res) => {
     const conn = await mysql.createConnection(dbConfig);
     const cashbox = (await conn.query(getCashboxSQL))[0][0];
     if (!cashbox) {
+      conn.end();
       return res.status(400).json({ message: "Касса не найдена." });
     }
     await conn.query(updateCashboxSQL, { closeddate: new Date(), open: false });

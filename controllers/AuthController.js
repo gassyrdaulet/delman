@@ -90,6 +90,7 @@ export const login = async (req, res) => {
       await conn.end();
       return res.status(400).json({ message: "Неверный пароль." });
     }
+    conn.end();
     const token = generateAccesToken(user.id, user.uid);
     delete user.password;
     delete user.confirmCode;

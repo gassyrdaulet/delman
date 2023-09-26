@@ -321,6 +321,7 @@ export const issueOrder = async (req, res) => {
       return;
     }
     if (order.deliverystatus !== "delivering") {
+      conn.end();
       res.status(400).json({
         message: `Заказ должен быть со статусом [НА ДОСТАВКЕ]!`,
       });
@@ -428,6 +429,7 @@ export const issuePickup = async (req, res) => {
       return;
     }
     if (order.deliverystatus !== "pickup") {
+      conn.end();
       res.status(400).json({
         message: `Заказ должен быть со статусом [САМОВЫВОЗ]!`,
       });
@@ -725,6 +727,7 @@ export const returnOrder = async (req, res) => {
     returnedOrder.id = insertId;
     await conn.query(insertOrderInfoSQL, returnedOrder);
     await conn.query(unlockTablesSQL);
+    conn.end();
     res.status(200).json({ message: `Заказ успешно отменен.` });
   } catch (e) {
     connUnlock.query(unlockTablesSQL);
@@ -818,6 +821,7 @@ export const cancelOrder = async (req, res) => {
     await conn.query(lockTableSQL2);
     await conn.query(insertOrderInfoSQL, finishedOrder);
     await conn.query(unlockTablesSQL);
+    conn.end();
     res.status(200).json({ message: `Отмена успешно оформлена.` });
   } catch (e) {
     connUnlock.query(unlockTablesSQL);

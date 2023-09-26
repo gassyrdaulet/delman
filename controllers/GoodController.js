@@ -360,6 +360,7 @@ export const deleteGood = async (req, res) => {
     if (good?.remainder && good.remainder.constructor === Array) {
       for (let item of good.remainder) {
         if (item.quantity > 0) {
+          conn.end();
           return res.status(400).json({
             message:
               "Нельзя удалять товар с остатком. Сперва сделайте его списание.",

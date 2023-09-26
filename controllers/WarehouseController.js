@@ -77,6 +77,7 @@ export const newAcceptance = async (req, res) => {
     const result = goods.filter((item) => item.quantity !== 0);
     if (!result || result.length === 0) {
       await conn.query(deleteInventorySQL + insertId);
+      conn.end();
       return res.status(400).json({
         message: "Нельзя создать пустой список.",
       });
@@ -222,6 +223,7 @@ export const newWriteOff = async (req, res) => {
     await conn.query(unlockTablesSQL);
     const result = goods.filter((item) => item.quantity !== 0);
     if (!result || result.length === 0) {
+      conn.end();
       await conn.query(deleteInventorySQL + insertId);
       return res.status(400).json({
         message:
