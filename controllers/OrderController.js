@@ -164,7 +164,7 @@ export const getFinishedOrders = async (req, res) => {
     const { organization } = req.user;
     const { firstDate, secondDate, dateType, delivery } = req.body;
     const getFinishedOrdersSQL = `SELECT * FROM archiveorders_${organization} WHERE ${
-      delivery ? `delivery = ${delivery} AND` : ""
+      delivery === null ? "" : `delivery = ${delivery} AND`
     } ${
       dateType ? dateType : "finisheddate"
     } BETWEEN '${firstDate}' AND '${secondDate}'`;
