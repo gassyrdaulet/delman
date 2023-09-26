@@ -924,6 +924,7 @@ export const recreateOrder = async (req, res) => {
       discount: JSON.stringify(order.discount),
       deliverystatus: order.delivery ? "new" : "pickup",
       status: "awaiting",
+      kaspiinfo: JSON.stringify(order?.kaspiinfo ? order.kaspiinfo : {}),
     });
     const { insertId } = insertInfo;
     await conn.query(unlockTablesSQL);
