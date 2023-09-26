@@ -15,6 +15,7 @@ export const getRemainder = async (id, organization) => {
     )[0][0];
     const remainder = good?.remainder ? good.remainder : [];
     if (remainder.length === 0) {
+      conn.end();
       return 0;
     }
     let quantity = 0;
