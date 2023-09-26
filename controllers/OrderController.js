@@ -327,7 +327,7 @@ export const issueOrder = async (req, res) => {
       });
       return;
     }
-    if (!roles.operator) {
+    if (!roles.operator && order.delivery === 0) {
       conn.end();
       res
         .status(400)
