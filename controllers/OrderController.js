@@ -1097,6 +1097,7 @@ export const newOrder = async (req, res) => {
       status: "awaiting",
       cashier: order.cashier ? order.cashier : null,
       kaspiinfo: JSON.stringify(kaspiInfo ? kaspiInfo : {}),
+      iskaspi: order.iskaspi,
     });
     const { insertId } = insertInfo;
 
