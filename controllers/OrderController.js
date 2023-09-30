@@ -1369,6 +1369,8 @@ export const newOrderStraightToTheArchive = async (req, res) => {
     finishedOrder.discount = JSON.stringify(finishedOrder.discount);
     finishedOrder.payment = JSON.stringify(finishedOrder.payment);
     finishedOrder.finisheddate = now;
+    finishedOrder.wentdate = now;
+    finishedOrder.delivereddate = now;
     finishedOrder.status = "finished";
     finishedOrder.deliverystatus = "finished";
     await conn.query(deleteOrderSQL, { id: insertId });
