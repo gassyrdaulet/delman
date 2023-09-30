@@ -924,7 +924,7 @@ export const recreateOrder = async (req, res) => {
       discount: JSON.stringify(order.discount),
       deliverystatus: order.delivery ? "new" : "pickup",
       status: "awaiting",
-      isKaspi: order?.isKaspi,
+      iskaspi: order?.iskaspi,
       kaspiinfo: JSON.stringify(order?.kaspiinfo ? order.kaspiinfo : {}),
     });
     const { insertId } = insertInfo;
