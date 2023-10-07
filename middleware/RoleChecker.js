@@ -47,7 +47,7 @@ export const roles = async (req, res, next) => {
       next();
     } else {
       await conn.end();
-      return res.status(400).json({
+      return res.status(401).json({
         message:
           "Вы не состоите в какой либо организации. Пожалуйста, перезагрузите сайт.",
       });

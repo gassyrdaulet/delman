@@ -33,7 +33,7 @@ router.post(
   [check("email", "Некорректный E-mail!").isEmail()],
   sendCode
 );
-router.get("/ping", [auth, roles], ping);
+router.get("/ping", [auth], ping);
 router.get("/checkorg", [auth, roles], ping);
 router.post("/token", [auth, roles], getToken);
 router.get("/getuserdata", [auth], getUserData);
