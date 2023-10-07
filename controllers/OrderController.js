@@ -643,9 +643,9 @@ export const returnOrder = async (req, res) => {
   let connUnlock = connUnlockSample;
   try {
     const { organization, id: userId, roles } = req.user;
-    if (!roles.operator) {
+    if (!roles.returnorder) {
       return res.status(403).json({
-        message: `Отказано в доступе! У вас нет прав для контроля доставок.`,
+        message: `Отказано в доступе! У вас нет прав для возврата заказов.`,
       });
     }
     const { orderId, cause } = req.body;
@@ -1232,6 +1232,9 @@ export const newOrderStraightToTheArchive = async (req, res) => {
       return res.status(400).json({ message: `Недоплата` });
     }
     const lockTableSQL = `LOCK TABLES goods_${organization} WRITE`;
+    const lockTableSQL2 = `LOCK TABLES cashboxes_${organization} WRITE`;
+    const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true and responsible = ${userId} LIMIT 1`;
+    const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = `;
     const unlockTablesSQL = `UNLOCK TABLES`;
     const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE ?`;
     const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE ?`;
@@ -1339,6 +1342,25 @@ export const newOrderStraightToTheArchive = async (req, res) => {
         message: "Ошибка! Товара недостаточно либо его нет в наличии.",
       });
     }
+    await conn.query(unlockTablesSQL);
+    await conn.query(lockTableSQL2);
+    const cashbox = (await conn.query(getCashboxSQL))[0][0];
+    if (!cashbox) {
+      await conn.query(unlockTablesSQL);
+      return res
+        .status(400)
+        .json({ message: "Нет открытых касс на этом аккаунте." });
+    }
+    let gatheredCash = 0;
+    payment.forEach((item) => {
+      gatheredCash += item.method === "cash" ? item.sum : 0;
+    });
+    const { cash } = cashbox;
+    cash.push({ type: "sale", amount: gatheredCash });
+    await conn.query(updateCashboxSQL + cashbox.id, {
+      cash: JSON.stringify(cash),
+    });
+    await conn.query(unlockTablesSQL);
     await Promise.all(
       results.map(async (result) => {
         await conn.query(updateGoodSQL + result.id, {
@@ -1347,7 +1369,6 @@ export const newOrderStraightToTheArchive = async (req, res) => {
         });
       })
     );
-    await conn.query(unlockTablesSQL);
     const insertedOrder = (await conn.query(getOrderInfoSQL + insertId))[0][0];
     const { history: insertedHistory } = insertedOrder;
     const now = new Date();

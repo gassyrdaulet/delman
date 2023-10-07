@@ -57,9 +57,12 @@ const checksForGoods = [
   }),
   check("series", "Неверно указана группа товаров.").isNumeric(),
   check("price", "Цена не должна быть ниже нуля!").custom((v) => {
-    return v > 0;
+    return v >= 0;
   }),
-  check("barcode", "Баркод не должен быть ниже нуля!").custom((v) => {
+  check(
+    "barcode",
+    "Баркод не должен быть ниже нуля или быть ему равным!"
+  ).custom((v) => {
     return v > 0;
   }),
 ];

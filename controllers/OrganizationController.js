@@ -7,6 +7,8 @@ dotenv.config();
 const { PRODUCTION } = process.env;
 const { dbConfigLocal, dbConfigProd } = config.get("dbConfig");
 const dbConfig = PRODUCTION === "true" ? dbConfigProd : dbConfigLocal;
+const unlockTablesSQL = `UNLOCK TABLES`;
+const connUnlockSample = { query: () => {}, end: () => {} };
 
 export const orgUserSchema = {
   id: null,
@@ -19,6 +21,7 @@ export const orgUserSchema = {
   operator: false,
   kaspi: false,
   editorder: false,
+  returnorder: false,
 };
 
 export const getUsers = async (req, res) => {
@@ -339,9 +342,7 @@ export const getCashbox = async (req, res) => {
     const cashbox = (await conn.query(getCashboxSQL))[0][0];
     await conn.end();
     if (!cashbox) {
-      return res
-        .status(400)
-        .json({ message: "Нет открытых касс на этом аккаунте." });
+      return res.status(400).json({ message: "У вас нет открытых касс." });
     }
     return res
       .status(200)
@@ -354,13 +355,29 @@ export const getCashbox = async (req, res) => {
 export const newCashbox = async (req, res) => {
   try {
     const { organization, id: userId } = req.user;
+    const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true LIMIT 1`;
     const newCashboxSQL = `INSERT INTO cashboxes_${organization} SET ?`;
     const conn = await mysql.createConnection(dbConfig);
-    await conn.query(newCashboxSQL, { responsible: userId, open: true });
+    const cashbox = (await conn.query(getCashboxSQL))[0][0];
+    if (!cashbox) {
+      await conn.query(newCashboxSQL, {
+        responsible: userId,
+        open: true,
+        cash: JSON.stringify([]),
+      });
+      await conn.end();
+      return res
+        .status(200)
+        .json({ message: "Новая касса была успешно открыта." });
+    }
     await conn.end();
-    return res
-      .status(200)
-      .json({ message: "Новая касса была успешно открыта." });
+    const cashier = await getNameById(cashbox.responsible);
+    return res.status(400).json({
+      message:
+        "Уже существует открытая касса у пользователя - " +
+        cashier +
+        ` (ID: ${cashbox.responsible})`,
+    });
   } catch (e) {
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
@@ -368,7 +385,7 @@ export const newCashbox = async (req, res) => {
 
 export const closeCashbox = async (req, res) => {
   try {
-    const { organization } = req.user;
+    const { organization, id: userId } = req.user;
     const { cashboxId } = req.body;
     const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE id = ${cashboxId}`;
     const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = ${cashboxId}`;
@@ -378,10 +395,130 @@ export const closeCashbox = async (req, res) => {
       conn.end();
       return res.status(400).json({ message: "Касса не найдена." });
     }
+    if (cashbox.responsible !== userId) {
+      conn.end();
+      return res.status(401).json({ message: "Нельзя закрыть чужую кассу!" });
+    }
     await conn.query(updateCashboxSQL, { closeddate: new Date(), open: false });
     await conn.end();
     return res.status(200).json({ message: "Касса была успешно закрыта." });
   } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const closeAnyCashbox = async (req, res) => {
+  try {
+    const { organization, owner } = req.user;
+    if (!owner) {
+      return res.status(401).json({
+        message: "Вы должны являться владельцем чтобы закрыть чужую кассу.",
+      });
+    }
+    const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true LIMIT 1`;
+    const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = `;
+    const conn = await mysql.createConnection(dbConfig);
+    const cashbox = (await conn.query(getCashboxSQL))[0][0];
+    if (!cashbox) {
+      conn.end();
+      return res.status(400).json({ message: "Касса не найдена." });
+    }
+    await conn.query(updateCashboxSQL + cashbox.id, {
+      closeddate: new Date(),
+      open: false,
+    });
+    await conn.end();
+    return res.status(200).json({ message: "Касса была успешно закрыта." });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const addCashToCashbox = async (req, res) => {
+  try {
+    const { organization, id: userId } = req.user;
+    const { amount } = req.body;
+    if (isNaN(parseInt(amount))) {
+      return res.status(400).json({ message: "Неверный формат суммы." });
+    }
+    if (parseInt(amount) < 0) {
+      return res.status(400).json({ message: "Неверный формат суммы." });
+    }
+    const lockTableSQL = `LOCK TABLES cashboxes_${organization} WRITE`;
+    const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = `;
+    const unlockTablesSQL = `UNLOCK TABLES`;
+    const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true LIMIT 1`;
+    const conn = await mysql.createConnection(dbConfig);
+    const cashbox = (await conn.query(getCashboxSQL))[0][0];
+    if (!cashbox) {
+      conn.end();
+      return res.status(400).json({ message: "Касса не найдена." });
+    }
+    if (cashbox.responsible !== userId) {
+      conn.end();
+      return res
+        .status(401)
+        .json({ message: "Нельзя добавить деньги в чужую кассу!" });
+    }
+    await conn.query(lockTableSQL);
+    const { cash } = cashbox;
+    cash.push({ type: "add", amount });
+    await conn.query(updateCashboxSQL + cashbox.id, {
+      cash: JSON.stringify(cash),
+    });
+    await conn.query(unlockTablesSQL);
+    await conn.end();
+    return res.status(200).json({
+      message: "Наличка успешно добавлена!",
+    });
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const removeCashFromCashbox = async (req, res) => {
+  let connUnlock = connUnlockSample;
+  try {
+    const { organization, id: userId } = req.user;
+    const { amount } = req.body;
+    if (isNaN(parseInt(amount))) {
+      return res.status(400).json({ message: "Неверный формат суммы." });
+    }
+    if (parseInt(amount) < 0) {
+      return res.status(400).json({ message: "Неверный формат суммы." });
+    }
+    const lockTableSQL = `LOCK TABLES cashboxes_${organization} WRITE`;
+    const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = `;
+    const unlockTablesSQL = `UNLOCK TABLES`;
+    const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true LIMIT 1`;
+    const conn = await mysql.createConnection(dbConfig);
+    connUnlock = conn;
+    const cashbox = (await conn.query(getCashboxSQL))[0][0];
+    if (!cashbox) {
+      conn.end();
+      return res.status(400).json({ message: "Касса не найдена." });
+    }
+    if (cashbox.responsible !== userId) {
+      conn.end();
+      return res
+        .status(401)
+        .json({ message: "Нельзя снять деньги с чужой кассы!" });
+    }
+    await conn.query(lockTableSQL);
+    const { cash } = cashbox;
+    cash.push({ type: "remove", amount });
+    await conn.query(updateCashboxSQL + cashbox.id, {
+      cash: JSON.stringify(cash),
+    });
+    await conn.query(unlockTablesSQL);
+    await conn.end();
+    return res.status(200).json({
+      message: "Наличка успешно снята!",
+    });
+  } catch (e) {
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };

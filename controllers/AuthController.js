@@ -57,6 +57,7 @@ const sendConfirmationEmail = (name, email, confirmationCode) => {
 
 export const ping = async (req, res) => {
   try {
+    req;
     res.status(200).json({ message: "OK" });
   } catch (e) {
     res.status(500).json({ message: "Ошибка сервера: " + e });

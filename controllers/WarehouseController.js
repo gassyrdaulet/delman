@@ -70,6 +70,7 @@ export const newAcceptance = async (req, res) => {
             ];
         await conn.query(updateGoodSQL + good.id, {
           remainder: JSON.stringify(temp),
+          lastpurchase: good.price,
         });
       })
     );
@@ -88,8 +89,8 @@ export const newAcceptance = async (req, res) => {
     conn.end();
     res.status(200).json({ message: "OK" });
   } catch (e) {
-    conn.query(unlockTablesSQL);
-    conn.end();
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
     res.status(500).json({
       message: "Ошибка в сервере.",
       e,
@@ -236,8 +237,8 @@ export const newWriteOff = async (req, res) => {
     conn.end();
     res.status(200).json({ message: "OK" });
   } catch (e) {
-    conn.query(unlockTablesSQL);
-    conn.end();
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
     res.status(500).json({
       message: "Ошибка в сервере.",
       e,

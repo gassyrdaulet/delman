@@ -13,6 +13,9 @@ import {
   newCashbox,
   closeCashbox,
   exitOrg,
+  closeAnyCashbox,
+  addCashToCashbox,
+  removeCashFromCashbox,
 } from "../controllers/OrganizationController.js";
 
 const router = new Router();
@@ -28,5 +31,8 @@ router.post("/deleteuser", [auth, roles], deleteUserFromOrg);
 router.get("/getcashbox", [auth, roles], getCashbox);
 router.post("/newcashbox", [auth, roles], newCashbox);
 router.post("/closecashbox", [auth, roles], closeCashbox);
+router.post("/closeanycashbox", [auth, roles], closeAnyCashbox);
+router.post("/addcashtocashbox", [auth, roles], addCashToCashbox);
+router.post("/removecashfromcashbox", [auth, roles], removeCashFromCashbox);
 
 export default router;
