@@ -31,6 +31,7 @@ const SECURE_PORT = process.env.SECURE_PORT ? process.env.SECURE_PORT : 952;
 const app = express();
 
 app.use(cors());
+app.use("/fonts", express.static("./public"));
 app.use(bodyParser.json());
 app.use(
   bodyParser.urlencoded({

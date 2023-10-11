@@ -18,6 +18,8 @@ import {
   newOrderStraightToTheArchive,
   isThereOrder,
   editManager,
+  editDeliver,
+  getDeliveryLists,
 } from "../controllers/OrderController.js";
 
 const router = new Router();
@@ -83,6 +85,7 @@ router.post(
   editOrder
 );
 router.post("/editmanager", [auth, roles], editManager);
+router.post("/editdeliver", [auth, roles], editDeliver);
 router.post(
   "/cashorder",
   [auth, roles, isDeliveryMiddleWare, ...deliveryChecks],
@@ -94,6 +97,7 @@ router.post("/issuepickup", [auth, roles], issuePickup);
 router.post("/finishorder", [auth, roles], finishOrder);
 router.post("/cancelorder", [auth, roles], cancelOrder);
 router.post("/getfinished", [auth, roles], getFinishedOrders);
+router.post("/getdeliverylists", [auth, roles], getDeliveryLists);
 router.post("/recreateorder", [auth, roles], recreateOrder);
 router.post("/returnorder", [auth, roles], returnOrder);
 router.post("/isthereorder", [auth, roles], isThereOrder);

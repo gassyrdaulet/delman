@@ -2,6 +2,7 @@ import mysql from "mysql2/promise";
 import config from "config";
 import * as dotenv from "dotenv";
 import { getNameById } from "../service/UserService.js";
+import { validationResult } from "express-validator";
 
 dotenv.config();
 const { PRODUCTION } = process.env;
@@ -432,6 +433,78 @@ export const closeAnyCashbox = async (req, res) => {
   } catch (e) {
     console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const createNewOrganization = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "Ошибка!", errors });
+    }
+    const { name } = req.body;
+    const { id } = req.user;
+    console.log(name, id);
+    const conn = await mysql.createConnection(dbConfig);
+    const insertOrganizationSQL = `INSERT INTO organizations SET ?`;
+    const organizationInfoSQL = `SELECT * FROM organizations WHERE id = `;
+    const userDataSql = `SELECT * FROM users WHERE id = ${id}`;
+    const user = (await conn.query(userDataSql))[0][0];
+    const organization = (
+      await conn.query(organizationInfoSQL + `'${user.organization}'`)
+    )[0][0];
+    if (organization?.id) {
+      await conn.end();
+      return res.status(400).json({
+        message:
+          "Ошибка! Вы уже состоите в существующей организации! Обратитесь к администрации.",
+      });
+    }
+    const users = [];
+    const newUserInfo = { id, admin: true };
+    const parsedNewUser = { ...orgUserSchema };
+    Object.keys(newUserInfo).forEach((key) => {
+      parsedNewUser[key] = newUserInfo[key];
+    });
+    const secondlyParsedUser = {};
+    Object.keys(orgUserSchema).forEach((key) => {
+      secondlyParsedUser[key] = parsedNewUser[key] ? parsedNewUser[key] : false;
+    });
+    users.push(secondlyParsedUser);
+    const [insertInfo] = await conn.query(insertOrganizationSQL, {
+      name,
+      owner: user.id,
+      users: JSON.stringify(users),
+      inventorycontroltype: "lifo",
+      paymentMethods: JSON.stringify([
+        { id: 0, code: "cash", name: "Наличка", value: 0 },
+      ]),
+    });
+    const { insertId } = insertInfo;
+    await conn.query(
+      `UPDATE users SET organization = '${insertId}' WHERE id = ${user.id}`
+    );
+    await conn.query(
+      `CREATE TABLE archiveorders_${insertId} LIKE archiveorders`
+    );
+    await conn.query(`CREATE TABLE cashboxes_${insertId} LIKE cashboxes`);
+    await conn.query(
+      `CREATE TABLE deliveryLists_${insertId} LIKE deliveryLists`
+    );
+    await conn.query(`CREATE TABLE goods_${insertId} LIKE goods`);
+    await conn.query(`CREATE TABLE orders_${insertId} LIKE orders`);
+    await conn.query(`CREATE TABLE relations_${insertId} LIKE relations`);
+    await conn.query(`CREATE TABLE series_${insertId} LIKE series`);
+    await conn.query(`CREATE TABLE warehouse_${insertId} LIKE warehouse`);
+    await conn.end();
+    return res
+      .json({
+        message: "Организация успешно зарегистрирована.",
+      })
+      .status(200);
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка в сервере: " + e });
   }
 };
 

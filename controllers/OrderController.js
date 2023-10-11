@@ -185,6 +185,27 @@ export const getFinishedOrders = async (req, res) => {
   }
 };
 
+export const getDeliveryLists = async (req, res) => {
+  try {
+    const { organization } = req.user;
+    const { firstDate, secondDate } = req.body;
+    const getDeliveryLists = `SELECT * FROM deliveryLists_${organization} WHERE date BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const conn = await mysql.createConnection(dbConfig);
+    const deliveryLists = (await conn.query(getDeliveryLists))[0];
+    conn.end();
+    await Promise.all(
+      deliveryLists.map(async (delivery) => {
+        delivery.deliverId = delivery.deliver;
+        delivery.deliver = await getNameById(delivery.deliver);
+      })
+    );
+    res.send(deliveryLists);
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
 export const getOrderDetails = async (req, res) => {
   try {
     const { organization } = req.user;
@@ -509,7 +530,11 @@ export const issuePickup = async (req, res) => {
     await conn.query(deleteOrderSQL + order.id);
     await conn.query(unlockTablesSQL);
     conn.end();
-    res.status(200).json({ message: `Заказ успешно выдан.` });
+    res.status(200).json({
+      message: `Заказ успешно выдан.`,
+      receiptId: order.id,
+      receiptDate: now.getTime(),
+    });
   } catch (e) {
     connUnlock.query(unlockTablesSQL);
     connUnlock.end();
@@ -526,7 +551,7 @@ export const finishOrder = async (req, res) => {
         message: `Отказано в доступе! У вас нет прав для контроля доставок.`,
       });
     }
-    const { orderIds, deliver, deliveryList } = req.body;
+    const { orderIds, deliver, deliveryList, comment, cash } = req.body;
     const lockTablesSQL = `LOCK TABLES archiveorders_${organization} WRITE, orders_${organization}  WRITE, goods_${organization}  WRITE, deliveryLists_${organization} WRITE`;
     const getOrdersSQL = `SELECT * FROM orders_${organization} where id IN(${orderIds.join()})`;
     const insertSQL = `INSERT INTO warehouse_${organization} SET ?`;
@@ -602,6 +627,12 @@ export const finishOrder = async (req, res) => {
         finishedOrder.history = JSON.stringify(history);
         finishedOrder.goods = JSON.stringify(finishedOrder.goods);
         finishedOrder.kaspiinfo = JSON.stringify(finishedOrder.kaspiinfo);
+        for (let delivery of deliveryList) {
+          if (delivery.id + "" === order.id + "") {
+            finishedOrder.deliveryinfo.deliveryPriceForDeliver =
+              delivery.deliveryPay;
+          }
+        }
         finishedOrder.deliveryinfo = JSON.stringify(finishedOrder.deliveryinfo);
         finishedOrder.discount = JSON.stringify(finishedOrder.discount);
         finishedOrder.payment = JSON.stringify(finishedOrder.payment);
@@ -625,6 +656,8 @@ export const finishOrder = async (req, res) => {
     await conn.query(insertDeliveryList, {
       deliveries: JSON.stringify(deliveryList),
       deliver,
+      comment,
+      cash,
     });
     await conn.query(unlockTablesSQL);
     conn.end();
@@ -1397,7 +1430,9 @@ export const newOrderStraightToTheArchive = async (req, res) => {
     await conn.query(deleteOrderSQL, { id: insertId });
     await conn.query(insertOrderArchiveSQL, finishedOrder);
     conn.end();
-    res.status(200).json({ message: "OK" });
+    res
+      .status(200)
+      .json({ message: "OK", receiptId: insertId, receiptDate: now.getTime() });
   } catch (e) {
     connUnlock.query(unlockTablesSQL);
     connUnlock.end();
@@ -1661,6 +1696,7 @@ export const editManager = async (req, res) => {
     )[0][0];
     if (!order && !archiveOrder) {
       conn.end();
+      await conn.query(unlockTablesSQL);
       res.status(400).json({
         message: `Нельзя отредактировать этот заказ! Заказ не найден!`,
       });
@@ -1682,6 +1718,80 @@ export const editManager = async (req, res) => {
         author: parseInt(managerId),
       }
     );
+    await conn.query(unlockTablesSQL);
+    conn.end();
+    res.status(200).json({ message: "OK" });
+  } catch (e) {
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const editDeliver = async (req, res) => {
+  let connUnlock = connUnlockSample;
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: "Ошибка!", errors });
+    }
+    const { organization, id: userId, roles } = req.user;
+    if (!roles.editorder) {
+      return res.status(403).json({
+        message: `Отказано в доступе! У вас нет прав для редактирования заявок.`,
+      });
+    }
+    const { deliverId, orderId } = req.body;
+    const selectUserSQL = `SELECT * FROM users WHERE id = ${deliverId}`;
+    const lockTablesSQL = `LOCK TABLES orders_${organization} WRITE`;
+    const unlockTablesSQL = `UNLOCK TABLES`;
+    const updateOrderSQL = `UPDATE orders_${organization} SET ? WHERE id = `;
+    const selectOrderSQL = `SELECT * FROM orders_${organization} WHERE ?`;
+    const conn = await mysql.createConnection(dbConfig);
+    connUnlock = conn;
+    const user = (await conn.query(selectUserSQL))[0][0];
+    if (!user) {
+      conn.end();
+      res.status(400).json({
+        message: `Пользователь не найден!`,
+      });
+      return;
+    }
+    await conn.query(lockTablesSQL);
+    const order = (await conn.query(selectOrderSQL, { id: orderId }))[0][0];
+    if (!order) {
+      conn.end();
+      conn.query(unlockTablesSQL);
+      res.status(400).json({
+        message: `Нельзя отредактировать этот заказ! Заказ не найден!`,
+      });
+      return;
+    }
+    if (
+      order.status !== "awaiting" &&
+      (order.deliverystatus !== "delivering" ||
+        order.deliverystatus !== "waiting")
+    ) {
+      conn.end();
+      conn.query(unlockTablesSQL);
+      res.status(400).json({
+        message: `Нельзя отредактировать этот заказ! Заказ должен быть на доставке.`,
+      });
+      return;
+    }
+    const { history } = order;
+    await conn.query(updateOrderSQL + orderId, {
+      history: JSON.stringify([
+        ...history,
+        {
+          action: "edited",
+          user: userId,
+          date: Date.now(),
+        },
+      ]),
+      deliver: parseInt(deliverId),
+    });
     await conn.query(unlockTablesSQL);
     conn.end();
     res.status(200).json({ message: "OK" });

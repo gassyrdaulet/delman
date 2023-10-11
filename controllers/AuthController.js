@@ -112,7 +112,6 @@ export const registration = async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      await conn.end();
       return res.status(400).json({ message: "Ошибка!", errors });
     }
     const { email, name, password } = req.body;

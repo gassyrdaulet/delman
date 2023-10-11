@@ -16,11 +16,13 @@ import {
   closeAnyCashbox,
   addCashToCashbox,
   removeCashFromCashbox,
+  createNewOrganization,
 } from "../controllers/OrganizationController.js";
 
 const router = new Router();
 
 router.get("/getusers", [auth, roles], getUsers);
+router.post("/neworganization", [auth], createNewOrganization);
 router.get("/getinfo", [auth, roles], getOrgInfo);
 router.post("/exitorg", [auth, roles], exitOrg);
 router.get("/getinvcntrltype", [auth, roles], getInvCntrlType);
