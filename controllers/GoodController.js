@@ -453,17 +453,16 @@ export const fetchGroupInfo = async (req, res) => {
 
 export const uploadXLSX = async (req, res) => {
   try {
-    const { file } = req.files;
-    const workbook = XLSX.readFile(file.path);
-    console.log(workbook);
     const { organization, roles } = req.user;
     if (!roles.goods) {
       return res.status(403).json({
         message: `Отказано в доступе! У вас нет прав для создания и редактирования товаров.`,
       });
     }
-    const selectGroupSQL = `SELECT * FROM goods_${organization}`;
+    const { file } = req.files;
+    const workbook = XLSX.readFile(file.path);
     const conn = await mysql.createConnection(dbConfig);
+    console.log(workbook);
     conn.end();
     res.status(200).json({ oops: "" });
   } catch (e) {

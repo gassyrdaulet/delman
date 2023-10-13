@@ -135,11 +135,11 @@ export const getOrders = async (req, res) => {
   try {
     const { organization } = req.user;
     const { status: deliverystatus } = req.query;
-    const getOrdersSQL = `SELECT * FROM orders_${organization}`;
+    const getOrdersSQL = `SELECT * FROM orders_${organization} where forincrement = false`;
     const conn = await mysql.createConnection(dbConfig);
     const orders = (
       await conn.query(
-        getOrdersSQL + (deliverystatus === "all" ? "" : " WHERE ?"),
+        getOrdersSQL + (deliverystatus === "all" ? "" : " AND ?"),
         { deliverystatus }
       )
     )[0];
@@ -163,7 +163,7 @@ export const getFinishedOrders = async (req, res) => {
   try {
     const { organization } = req.user;
     const { firstDate, secondDate, dateType, delivery } = req.body;
-    const getFinishedOrdersSQL = `SELECT * FROM archiveorders_${organization} WHERE ${
+    const getFinishedOrdersSQL = `SELECT * FROM archiveorders_${organization} WHERE forincrement = false AND ${
       delivery === null ? "" : `delivery = ${delivery} AND`
     } ${
       dateType ? dateType : "finisheddate"
@@ -210,8 +210,8 @@ export const getOrderDetails = async (req, res) => {
   try {
     const { organization } = req.user;
     const { id } = req.query;
-    const getOrderSQL = `SELECT * FROM orders_${organization} WHERE ?`;
-    const getFinishedOrderSQL = `SELECT * FROM archiveorders_${organization} WHERE ?`;
+    const getOrderSQL = `SELECT * FROM orders_${organization} WHERE forincrement = false AND ?`;
+    const getFinishedOrderSQL = `SELECT * FROM archiveorders_${organization} WHERE forincrement = false AND ?`;
     const conn = await mysql.createConnection(dbConfig);
     const activeCandidate = (await conn.query(getOrderSQL, { id }))[0][0];
     const archiveCandidate = (
@@ -686,9 +686,9 @@ export const returnOrder = async (req, res) => {
     const deleteInventorySQL = `DELETE FROM warehouse_${organization} WHERE id = `;
     const insertOrderInfoSQL = `INSERT INTO archiveorders_${organization} SET ?`;
     const insertOrderInfoSQL2 = `INSERT INTO orders_${organization} SET ?`;
-    const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE ?`;
+    const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE forincrement = true and NOT ?`;
     const lockTableSQL = `LOCK TABLES archiveorders_${organization} WRITE, goods_${organization} WRITE, orders_${organization} WRITE`;
-    const getOrderInfoSQL = `SELECT * from archiveorders_${organization} WHERE id = `;
+    const getOrderInfoSQL = `SELECT * from archiveorders_${organization}  WHERE id = `;
     const updateOrderSQL = `UPDATE archiveorders_${organization} SET ? WHERE id = `;
     const conn = await mysql.createConnection(dbConfig);
     connUnlock = conn;
@@ -723,7 +723,6 @@ export const returnOrder = async (req, res) => {
         .json({ message: `Отмененный или возвращенный заказ нельзя вернуть!` });
       return;
     }
-    await returnGoods(goods, organization, conn, insertIdWarehouse);
     history.push({
       action: "returned",
       user: userId,
@@ -746,6 +745,7 @@ export const returnOrder = async (req, res) => {
         cause,
       },
     ]);
+    await returnGoods(goods, organization, conn, insertIdWarehouse);
     returnedOrder.goods = JSON.stringify(returnedOrder.goods);
     returnedOrder.kaspiinfo = JSON.stringify(returnedOrder.kaspiinfo);
     returnedOrder.deliveryinfo = JSON.stringify(returnedOrder.deliveryinfo);
@@ -754,7 +754,10 @@ export const returnOrder = async (req, res) => {
     returnedOrder.finisheddate = now;
     returnedOrder.status = "returned";
     returnedOrder.deliverystatus = "finished";
-    const [insertInfo] = await conn.query(insertOrderInfoSQL2, returnedOrder);
+    const [insertInfo] = await conn.query(insertOrderInfoSQL2, {
+      ...returnedOrder,
+      forincrement: true,
+    });
     const { insertId } = insertInfo;
     await conn.query(deleteOrderSQL, { id: insertId });
     returnedOrder.id = insertId;
@@ -1265,12 +1268,12 @@ export const newOrderStraightToTheArchive = async (req, res) => {
       return res.status(400).json({ message: `Недоплата` });
     }
     const lockTableSQL = `LOCK TABLES goods_${organization} WRITE`;
-    const lockTableSQL2 = `LOCK TABLES cashboxes_${organization} WRITE`;
+    const lockTableSQL2 = `LOCK TABLES cashboxes_${organization} WRITE, orders_${organization} WRITE`;
     const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true and responsible = ${userId} LIMIT 1`;
     const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = `;
     const unlockTablesSQL = `UNLOCK TABLES`;
     const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE ?`;
-    const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE ?`;
+    const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE forincrement = true AND NOT ?`;
     const updateGoodSQL = `UPDATE goods_${organization} SET ? WHERE id = `;
     const insertOrderSQL = `INSERT INTO orders_${organization} SET ?`;
     const getOrderInfoSQL = `SELECT * FROM orders_${organization} WHERE id = `;
@@ -1279,6 +1282,7 @@ export const newOrderStraightToTheArchive = async (req, res) => {
     connUnlock = conn;
     let noGoodError = false;
     const parsedDate = Date.now();
+
     const [insertInfo] = await conn.query(insertOrderSQL, {
       history: JSON.stringify([
         {
@@ -1314,7 +1318,8 @@ export const newOrderStraightToTheArchive = async (req, res) => {
       discount: JSON.stringify(order.discount),
       deliverystatus: order.isDelivery ? "new" : "pickup",
       status: "awaiting",
-      cashier: order.cashier ? order.cashier : null,
+      cashier: order?.cashier ? order.cashier : null,
+      forincrement: true,
     });
     const { insertId } = insertInfo;
     await conn.query(lockTableSQL);
@@ -1370,7 +1375,7 @@ export const newOrderStraightToTheArchive = async (req, res) => {
     if (noGoodError) {
       await conn.query(unlockTablesSQL);
       await conn.query(deleteOrderSQL, { id: insertId });
-      conn.end();
+      await conn.end();
       return res.status(400).json({
         message: "Ошибка! Товара недостаточно либо его нет в наличии.",
       });
@@ -1379,6 +1384,7 @@ export const newOrderStraightToTheArchive = async (req, res) => {
     await conn.query(lockTableSQL2);
     const cashbox = (await conn.query(getCashboxSQL))[0][0];
     if (!cashbox) {
+      await conn.query(deleteOrderSQL, { id: insertId });
       await conn.query(unlockTablesSQL);
       return res
         .status(400)
@@ -1389,19 +1395,11 @@ export const newOrderStraightToTheArchive = async (req, res) => {
       gatheredCash += item.method === "cash" ? item.sum : 0;
     });
     const { cash } = cashbox;
-    cash.push({ type: "sale", amount: gatheredCash });
+    cash.push({ type: "sale", amount: gatheredCash, comment: "" });
     await conn.query(updateCashboxSQL + cashbox.id, {
       cash: JSON.stringify(cash),
     });
     await conn.query(unlockTablesSQL);
-    await Promise.all(
-      results.map(async (result) => {
-        await conn.query(updateGoodSQL + result.id, {
-          remainder: JSON.stringify(result.info.remainder),
-          piecesSold: result.info.piecesSold,
-        });
-      })
-    );
     const insertedOrder = (await conn.query(getOrderInfoSQL + insertId))[0][0];
     const { history: insertedHistory } = insertedOrder;
     const now = new Date();
@@ -1427,8 +1425,17 @@ export const newOrderStraightToTheArchive = async (req, res) => {
     finishedOrder.delivereddate = now;
     finishedOrder.status = "finished";
     finishedOrder.deliverystatus = "finished";
+    finishedOrder.forincrement = false;
     await conn.query(deleteOrderSQL, { id: insertId });
     await conn.query(insertOrderArchiveSQL, finishedOrder);
+    await Promise.all(
+      results.map(async (result) => {
+        await conn.query(updateGoodSQL + result.id, {
+          remainder: JSON.stringify(result.info.remainder),
+          piecesSold: result.info.piecesSold,
+        });
+      })
+    );
     conn.end();
     res
       .status(200)
@@ -1810,7 +1817,7 @@ export const isThereOrder = async (req, res) => {
     const conn = await mysql.createConnection(dbConfig);
     const order = (
       await conn.query(
-        `SELECT * FROM archiveorders_${organization} WHERE id = ${id}`
+        `SELECT * FROM archiveorders_${organization} WHERE forincrement = false AND id = ${id}`
       )
     )[0][0];
     conn.end();
