@@ -17,6 +17,9 @@ import {
   addCashToCashbox,
   removeCashFromCashbox,
   createNewOrganization,
+  getCashboxes,
+  getSpendings,
+  newSpending,
 } from "../controllers/OrganizationController.js";
 
 const router = new Router();
@@ -31,6 +34,9 @@ router.post("/addnewuser", [auth, roles], addNewUser);
 router.post("/edituser", [auth, roles], editOrgUsers);
 router.post("/deleteuser", [auth, roles], deleteUserFromOrg);
 router.get("/getcashbox", [auth, roles], getCashbox);
+router.post("/getcashboxes", [auth, roles], getCashboxes);
+router.post("/getspendings", [auth, roles], getSpendings);
+router.post("/newspending", [auth, roles], newSpending);
 router.post("/newcashbox", [auth, roles], newCashbox);
 router.post("/closecashbox", [auth, roles], closeCashbox);
 router.post("/closeanycashbox", [auth, roles], closeAnyCashbox);

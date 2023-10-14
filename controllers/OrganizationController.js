@@ -353,6 +353,30 @@ export const getCashbox = async (req, res) => {
   }
 };
 
+export const getCashboxes = async (req, res) => {
+  try {
+    const { organization } = req.user;
+    const { firstDate, secondDate } = req.body;
+    const getCashboxesSQL = `SELECT * FROM cashboxes_${organization} WHERE openeddate BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const conn = await mysql.createConnection(dbConfig);
+    const cashboxes = (await conn.query(getCashboxesSQL))[0];
+    await conn.end();
+    const cashboxesWithNames = [];
+    await Promise.all(
+      cashboxes.map(async (cashbox) => {
+        cashboxesWithNames.push({
+          ...cashbox,
+          username: await getNameById(cashbox.responsible),
+        });
+      })
+    );
+    res.send(cashboxesWithNames);
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
 export const newCashbox = async (req, res) => {
   try {
     const { organization, id: userId } = req.user;
@@ -536,7 +560,14 @@ export const addCashToCashbox = async (req, res) => {
     }
     await conn.query(lockTableSQL);
     const { cash } = cashbox;
-    cash.push({ type: "add", amount });
+    const date = Date.now();
+    cash.push({
+      type: "add",
+      amount: amount,
+      method: "cash",
+      comment,
+      date,
+    });
     await conn.query(updateCashboxSQL + cashbox.id, {
       cash: JSON.stringify(cash),
     });
@@ -550,11 +581,63 @@ export const addCashToCashbox = async (req, res) => {
   }
 };
 
+export const getSpendings = async (req, res) => {
+  try {
+    const { organization } = req.user;
+    const { firstDate, secondDate } = req.body;
+    const getSpendingsSQL = `SELECT * FROM spendings_${organization} WHERE date BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const conn = await mysql.createConnection(dbConfig);
+    const spendings = (await conn.query(getSpendingsSQL))[0];
+    await conn.end();
+    const spendingsWithNames = [];
+    await Promise.all(
+      spendings.map(async (spending) => {
+        spendingsWithNames.push({
+          ...spending,
+          username: await getNameById(spending.user),
+        });
+      })
+    );
+    res.send(spendingsWithNames);
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const newSpending = async (req, res) => {
+  try {
+    const { organization, id: userId } = req.user;
+    const { purpose, sum, comment, date } = req.body;
+    if (isNaN(parseInt(sum))) {
+      return res.status(400).json({ message: "Неверный формат суммы." });
+    }
+    if (parseInt(sum) < 0) {
+      return res.status(400).json({ message: "Неверный формат суммы." });
+    }
+    const insertSpendingSQL = `INSERT INTO spendings_${organization} SET ?`;
+    const conn = await mysql.createConnection(dbConfig);
+    await conn.query(insertSpendingSQL, {
+      purpose,
+      sum,
+      user: userId,
+      comment,
+      date: new Date(date),
+    });
+    await conn.end();
+    return res.status(200).json({
+      message: "Расход успешно добавлен!",
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
 export const removeCashFromCashbox = async (req, res) => {
   let connUnlock = connUnlockSample;
   try {
     const { organization, id: userId } = req.user;
-    const { amount } = req.body;
+    const { amount, comment } = req.body;
     if (isNaN(parseInt(amount))) {
       return res.status(400).json({ message: "Неверный формат суммы." });
     }
@@ -580,7 +663,14 @@ export const removeCashFromCashbox = async (req, res) => {
     }
     await conn.query(lockTableSQL);
     const { cash } = cashbox;
-    cash.push({ type: "remove", amount });
+    const date = Date.now();
+    cash.push({
+      type: "remove",
+      amount: -1 * amount,
+      method: "cash",
+      comment,
+      date,
+    });
     await conn.query(updateCashboxSQL + cashbox.id, {
       cash: JSON.stringify(cash),
     });

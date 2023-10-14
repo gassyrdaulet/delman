@@ -1390,12 +1390,17 @@ export const newOrderStraightToTheArchive = async (req, res) => {
         .status(400)
         .json({ message: "Нет открытых касс на этом аккаунте." });
     }
-    let gatheredCash = 0;
-    payment.forEach((item) => {
-      gatheredCash += item.method === "cash" ? item.sum : 0;
-    });
+    const date = Date.now();
     const { cash } = cashbox;
-    cash.push({ type: "sale", amount: gatheredCash, comment: "" });
+    payment.forEach((item) => {
+      cash.push({
+        type: "sale",
+        amount: item.sum,
+        method: item.method,
+        comment: "",
+        date,
+      });
+    });
     await conn.query(updateCashboxSQL + cashbox.id, {
       cash: JSON.stringify(cash),
     });
