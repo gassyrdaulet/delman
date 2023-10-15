@@ -20,6 +20,7 @@ import {
   editManager,
   editDeliver,
   getDeliveryLists,
+  getFinishedOrdersForSummary,
 } from "../controllers/OrderController.js";
 
 const router = new Router();
@@ -97,6 +98,7 @@ router.post("/issuepickup", [auth, roles], issuePickup);
 router.post("/finishorder", [auth, roles], finishOrder);
 router.post("/cancelorder", [auth, roles], cancelOrder);
 router.post("/getfinished", [auth, roles], getFinishedOrders);
+router.post("/getfinishedforsum", [auth, roles], getFinishedOrdersForSummary);
 router.post("/getdeliverylists", [auth, roles], getDeliveryLists);
 router.post("/recreateorder", [auth, roles], recreateOrder);
 router.post("/returnorder", [auth, roles], returnOrder);

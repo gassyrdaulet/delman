@@ -20,6 +20,7 @@ import {
   getCashboxes,
   getSpendings,
   newSpending,
+  deleteSpending,
 } from "../controllers/OrganizationController.js";
 
 const router = new Router();
@@ -37,6 +38,7 @@ router.get("/getcashbox", [auth, roles], getCashbox);
 router.post("/getcashboxes", [auth, roles], getCashboxes);
 router.post("/getspendings", [auth, roles], getSpendings);
 router.post("/newspending", [auth, roles], newSpending);
+router.post("/deletespending", [auth, roles], deleteSpending);
 router.post("/newcashbox", [auth, roles], newCashbox);
 router.post("/closecashbox", [auth, roles], closeCashbox);
 router.post("/closeanycashbox", [auth, roles], closeAnyCashbox);

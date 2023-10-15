@@ -135,23 +135,15 @@ export const getOrders = async (req, res) => {
   try {
     const { organization } = req.user;
     const { status: deliverystatus } = req.query;
-    const getOrdersSQL = `SELECT * FROM orders_${organization} where forincrement = false`;
+    const getOrdersSQL = `SELECT o.id, o.goods, o.iskaspi, o.countable, o.creationdate, o.deliveryinfo, o.status, o.deliverystatus, o.comment, o.discount, o.delivery, o.payment, o.author AS authorId, o.deliver AS deliverId, u.name AS author, u2.name AS deliver FROM orders_${organization} o LEFT JOIN users u ON o.author = u.id LEFT JOIN users u2 ON o.deliver = u2.id WHERE o.forincrement = false`;
     const conn = await mysql.createConnection(dbConfig);
     const orders = (
       await conn.query(
         getOrdersSQL + (deliverystatus === "all" ? "" : " AND ?"),
-        { deliverystatus }
+        { "o.deliverystatus": deliverystatus }
       )
     )[0];
     conn.end();
-    await Promise.all(
-      orders.map(async (order) => {
-        order.authorId = order.author;
-        order.deliverId = order.deliver;
-        order.author = await getNameById(order.author);
-        order.deliver = await getNameById(order.deliver);
-      })
-    );
     res.send(orders);
   } catch (e) {
     console.log(e);
@@ -163,24 +155,38 @@ export const getFinishedOrders = async (req, res) => {
   try {
     const { organization } = req.user;
     const { firstDate, secondDate, dateType, delivery } = req.body;
-    const getFinishedOrdersSQL = `SELECT * FROM archiveorders_${organization} WHERE forincrement = false AND ${
-      delivery === null ? "" : `delivery = ${delivery} AND`
-    } ${
+    const getFinishedOrdersSQL = `SELECT a.id, a.status, a.goods, a.${
+      dateType ? dateType : "finisheddate"
+    },a.kaspiinfo, a.countable, a.creationdate, a.deliveryinfo,a.comment, a.deliver AS deliverId , a.delivery, a.author AS authorId, a.discount, a.payment, a.wasReturned, a.deliverystatus, a.isKaspi , u.name AS author, u2.name AS deliver FROM archiveorders_${organization} a LEFT JOIN users u ON a.author=u.id LEFT JOIN users u2 ON a.deliver=u2.id WHERE ${
+      delivery === null ? "" : `a.delivery = ${delivery} AND`
+    } a.${
       dateType ? dateType : "finisheddate"
     } BETWEEN '${firstDate}' AND '${secondDate}'`;
     const conn = await mysql.createConnection(dbConfig);
     const finishedOrders = (await conn.query(getFinishedOrdersSQL))[0];
     conn.end();
-    await Promise.all(
-      finishedOrders.map(async (order) => {
-        order.authorId = order.author;
-        order.deliverId = order.deliver;
-        order.author = await getNameById(order.author);
-        order.deliver = await getNameById(order.deliver);
-      })
-    );
     res.send(finishedOrders);
   } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const getFinishedOrdersForSummary = async (req, res) => {
+  try {
+    const { organization } = req.user;
+    const { firstDate, secondDate, dateType } = req.body;
+    const getFinishedOrdersSQL = `SELECT id, status, goods,${
+      dateType ? dateType : "finisheddate"
+    },kaspiinfo, countable, deliveryinfo, deliver, delivery, author as authorId, discount, payment, wasReturned, deliverystatus, isKaspi  FROM archiveorders_${organization} WHERE ${
+      dateType ? dateType : "finisheddate"
+    } BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const conn = await mysql.createConnection(dbConfig);
+    const finishedOrders = (await conn.query(getFinishedOrdersSQL))[0];
+    conn.end();
+    res.send(finishedOrders);
+  } catch (e) {
+    console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };
@@ -189,16 +195,10 @@ export const getDeliveryLists = async (req, res) => {
   try {
     const { organization } = req.user;
     const { firstDate, secondDate } = req.body;
-    const getDeliveryLists = `SELECT * FROM deliveryLists_${organization} WHERE date BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const getDeliveryLists = `SELECT d.id, d.deliveries, d.deliver as deliverId, u.name as deliver, d.date, d.comment, d.cash FROM deliveryLists_${organization} d LEFT JOIN users u ON d.deliver = u.id WHERE d.date BETWEEN '${firstDate}' AND '${secondDate}'`;
     const conn = await mysql.createConnection(dbConfig);
     const deliveryLists = (await conn.query(getDeliveryLists))[0];
     conn.end();
-    await Promise.all(
-      deliveryLists.map(async (delivery) => {
-        delivery.deliverId = delivery.deliver;
-        delivery.deliver = await getNameById(delivery.deliver);
-      })
-    );
     res.send(deliveryLists);
   } catch (e) {
     console.log(e);
@@ -210,23 +210,20 @@ export const getOrderDetails = async (req, res) => {
   try {
     const { organization } = req.user;
     const { id } = req.query;
-    const getOrderSQL = `SELECT * FROM orders_${organization} WHERE forincrement = false AND ?`;
-    const getFinishedOrderSQL = `SELECT * FROM archiveorders_${organization} WHERE forincrement = false AND ?`;
+    const getOrderSQL = `SELECT o.id, o.history, o.goods, o.creationdate, o.wentdate, o.delivereddate, o.finisheddate, o.kaspiinfo, o.countable, o.deliveryinfo, o.deliver, o.author, o.discount, o.cashier, o.payment, o.deliverystatus, o.status, o.wasReturned, o.isKaspi, o.forincrement, o.deliver as deliverId, o.cashier as cashierId, o.author as authorId, u.name as deliver, u2.name as cashier, u3.name as author FROM orders_${organization} o LEFT JOIN users u ON o.deliver = u.id LEFT JOIN users u2 ON o.cashier = u2.id LEFT JOIN users u3 ON o.author = u3.id WHERE o.forincrement = false AND ?`;
+    const getFinishedOrderSQL = `SELECT o.id, o.history, o.goods, o.creationdate, o.wentdate, o.delivereddate, o.finisheddate, o.kaspiinfo, o.countable, o.deliveryinfo, o.deliver, o.author, o.discount, o.cashier, o.payment, o.deliverystatus, o.status, o.wasReturned, o.isKaspi, o.forincrement, o.deliver as deliverId, o.cashier as cashierId, o.author as authorId, u.name as deliver, u2.name as cashier, u3.name as author  FROM archiveorders_${organization} o LEFT JOIN users u ON o.deliver = u.id LEFT JOIN users u2 ON o.cashier = u2.id LEFT JOIN users u3 ON o.author = u3.id WHERE o.forincrement = false AND ?`;
     const conn = await mysql.createConnection(dbConfig);
-    const activeCandidate = (await conn.query(getOrderSQL, { id }))[0][0];
+    const activeCandidate = (
+      await conn.query(getOrderSQL, { "o.id": id })
+    )[0][0];
     const archiveCandidate = (
-      await conn.query(getFinishedOrderSQL, { id })
+      await conn.query(getFinishedOrderSQL, { "o.id": id })
     )[0][0];
     const order = activeCandidate ? activeCandidate : archiveCandidate;
     conn.end();
     if (!order) {
       return res.status(400).json({ message: "Заказ не найден!" });
     }
-    order.authorId = order.author;
-    order.deliverId = order.deliver;
-    order.author = await getNameById(order.author);
-    order.deliver = await getNameById(order.deliver);
-    order.cashier = await getNameById(order.cashier);
     await Promise.all(
       order.goods.map(async (item) => {
         const remainder = await getRemainder(item.id, organization);
@@ -240,6 +237,7 @@ export const getOrderDetails = async (req, res) => {
     );
     res.send(order);
   } catch (e) {
+    console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };
@@ -734,9 +732,9 @@ export const returnOrder = async (req, res) => {
       history: JSON.stringify(history),
     });
     const returnedOrder = order;
+    returnedOrder.comment = returnedOrder.id;
     delete returnedOrder.id;
     delete returnedOrder.creationdate;
-    delete returnedOrder.comment;
     returnedOrder.history = JSON.stringify([
       {
         action: "returned",

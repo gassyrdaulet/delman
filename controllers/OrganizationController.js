@@ -357,20 +357,11 @@ export const getCashboxes = async (req, res) => {
   try {
     const { organization } = req.user;
     const { firstDate, secondDate } = req.body;
-    const getCashboxesSQL = `SELECT * FROM cashboxes_${organization} WHERE openeddate BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const getCashboxesSQL = `SELECT c.id, c.openeddate, c.closeddate, c.responsible, c.open, c.cash, u.name as username FROM cashboxes_${organization} c LEFT JOIN users u ON c.responsible = u.id WHERE openeddate BETWEEN '${firstDate}' AND '${secondDate}'`;
     const conn = await mysql.createConnection(dbConfig);
     const cashboxes = (await conn.query(getCashboxesSQL))[0];
     await conn.end();
-    const cashboxesWithNames = [];
-    await Promise.all(
-      cashboxes.map(async (cashbox) => {
-        cashboxesWithNames.push({
-          ...cashbox,
-          username: await getNameById(cashbox.responsible),
-        });
-      })
-    );
-    res.send(cashboxesWithNames);
+    res.send(cashboxes);
   } catch (e) {
     console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
@@ -511,15 +502,37 @@ export const createNewOrganization = async (req, res) => {
     await conn.query(
       `CREATE TABLE archiveorders_${insertId} LIKE archiveorders`
     );
+    await conn.query(
+      `CREATE INDEX idx_wentdate ON archiveorders_${insertId} (wentdate)`
+    );
+    await conn.query(
+      `CREATE INDEX idx_creationdate ON archiveorders_${insertId} (creationdate)`
+    );
+    await conn.query(
+      `CREATE INDEX idx_delivereddate ON archiveorders_${insertId} (delivereddate)`
+    );
+    await conn.query(
+      `CREATE INDEX idx_finisheddate ON archiveorders_${insertId} (finisheddate)`
+    );
     await conn.query(`CREATE TABLE cashboxes_${insertId} LIKE cashboxes`);
     await conn.query(
+      `CREATE INDEX idx_openeddate ON cashboxes_${insertId} (openeddate)`
+    );
+    await conn.query(
+      `CREATE INDEX idx_closeddate ON cashboxes_${insertId} (closeddate)`
+    );
+    await conn.query(
       `CREATE TABLE deliveryLists_${insertId} LIKE deliveryLists`
+    );
+    await conn.query(
+      `CREATE INDEX idx_date ON deliveryLists_${insertId} (date)`
     );
     await conn.query(`CREATE TABLE goods_${insertId} LIKE goods`);
     await conn.query(`CREATE TABLE orders_${insertId} LIKE orders`);
     await conn.query(`CREATE TABLE relations_${insertId} LIKE relations`);
     await conn.query(`CREATE TABLE series_${insertId} LIKE series`);
     await conn.query(`CREATE TABLE warehouse_${insertId} LIKE warehouse`);
+    await conn.query(`CREATE INDEX idx_date ON warehouse_${insertId} (date)`);
     await conn.end();
     return res
       .json({
@@ -583,22 +596,18 @@ export const addCashToCashbox = async (req, res) => {
 
 export const getSpendings = async (req, res) => {
   try {
-    const { organization } = req.user;
+    const { organization, roles } = req.user;
+    if (!roles.admin) {
+      return res.status(403).json({
+        message: `Отказано в доступе!.`,
+      });
+    }
     const { firstDate, secondDate } = req.body;
-    const getSpendingsSQL = `SELECT * FROM spendings_${organization} WHERE date BETWEEN '${firstDate}' AND '${secondDate}'`;
+    const getSpendingsSQL = `SELECT s.id, s.purpose, s.sum, s.user, s.comment, s.date, u.name as username FROM spendings_${organization} s LEFT JOIN users u ON s.user = u.id WHERE date BETWEEN '${firstDate}' AND '${secondDate}'`;
     const conn = await mysql.createConnection(dbConfig);
     const spendings = (await conn.query(getSpendingsSQL))[0];
     await conn.end();
-    const spendingsWithNames = [];
-    await Promise.all(
-      spendings.map(async (spending) => {
-        spendingsWithNames.push({
-          ...spending,
-          username: await getNameById(spending.user),
-        });
-      })
-    );
-    res.send(spendingsWithNames);
+    res.send(spendings);
   } catch (e) {
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
@@ -606,7 +615,12 @@ export const getSpendings = async (req, res) => {
 
 export const newSpending = async (req, res) => {
   try {
-    const { organization, id: userId } = req.user;
+    const { organization, id: userId, roles } = req.user;
+    if (!roles.admin) {
+      return res.status(403).json({
+        message: `Отказано в доступе!.`,
+      });
+    }
     const { purpose, sum, comment, date } = req.body;
     if (isNaN(parseInt(sum))) {
       return res.status(400).json({ message: "Неверный формат суммы." });
@@ -626,6 +640,28 @@ export const newSpending = async (req, res) => {
     await conn.end();
     return res.status(200).json({
       message: "Расход успешно добавлен!",
+    });
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const deleteSpending = async (req, res) => {
+  try {
+    const { organization, id: userId, owner } = req.user;
+    if (!owner) {
+      return res.status(403).json({
+        message: `Отказано в доступе!.`,
+      });
+    }
+    const { id } = req.body;
+    const deleteSpendingSQL = `DELETE FROM spendings_${organization} WHERE ?`;
+    const conn = await mysql.createConnection(dbConfig);
+    await conn.query(deleteSpendingSQL, { id });
+    await conn.end();
+    return res.status(200).json({
+      message: "Расход успешно удален!",
     });
   } catch (e) {
     console.log(e);

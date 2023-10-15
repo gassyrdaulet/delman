@@ -10,6 +10,38 @@ import OrganizationRoutes from "./routes/OrganizationRoutes.js";
 import * as dotenv from "dotenv";
 import https from "https";
 import fs from "fs";
+import { networkInterfaces } from "os";
+
+const getIPAddress = () => {
+  const nets = networkInterfaces();
+  const results = {};
+
+  for (const name of Object.keys(nets)) {
+    for (const net of nets[name]) {
+      // Retrieve only IPv4 addresses
+      if (net.family === "IPv4" && !net.internal) {
+        if (!results[name]) {
+          results[name] = [];
+        }
+        results[name].push(net.address);
+      }
+    }
+  }
+
+  // Return the first IP address for the first NIC found
+  const nicNames = Object.keys(results);
+  if (nicNames.length > 0) {
+    const firstNICAddresses = results[nicNames[0]];
+    if (firstNICAddresses.length > 0) {
+      return firstNICAddresses[0];
+    }
+  }
+
+  // No IP address found
+  return null;
+};
+
+const ipAddress = getIPAddress();
 
 const requestLogs = [];
 
@@ -50,9 +82,9 @@ app.get("/", (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Сервер активен. Порт: ${PORT}.`);
+  console.log(`\n\nLocal: http://${ipAddress}:${PORT}/`);
 });
 const httpsServer = https.createServer(credentials, app);
 httpsServer.listen(SECURE_PORT, () => {
-  console.log(`HTTPS Сервер активен. Порт: ${SECURE_PORT}.`);
+  console.log(`HTTPS Сервер активен: https://domper.kz:${SECURE_PORT}/\n\n`);
 });
