@@ -210,7 +210,7 @@ export const getOrderDetails = async (req, res) => {
   try {
     const { organization } = req.user;
     const { id } = req.query;
-    const getOrderSQL = `SELECT o.id, o.history, o.goods, o.creationdate, o.wentdate, o.delivereddate, o.finisheddate, o.kaspiinfo, o.countable, o.deliveryinfo, o.deliver, o.author, o.discount, o.cashier, o.payment, o.deliverystatus, o.status, o.wasReturned, o.isKaspi, o.forincrement, o.deliver as deliverId, o.cashier as cashierId, o.author as authorId, u.name as deliver, u2.name as cashier, u3.name as author FROM orders_${organization} o LEFT JOIN users u ON o.deliver = u.id LEFT JOIN users u2 ON o.cashier = u2.id LEFT JOIN users u3 ON o.author = u3.id WHERE o.forincrement = false AND ?`;
+    const getOrderSQL = `SELECT o.id, o.history, o.goods, o.creationdate, o.wentdate, o.delivereddate, o.finisheddate, o.kaspiinfo, o.countable, o.deliveryinfo, o.deliver, o.delivery, o.author, o.discount, o.cashier, o.payment, o.deliverystatus, o.status, o.wasReturned, o.isKaspi, o.forincrement, o.deliver as deliverId, o.cashier as cashierId, o.author as authorId, u.name as deliver, u2.name as cashier, u3.name as author FROM orders_${organization} o LEFT JOIN users u ON o.deliver = u.id LEFT JOIN users u2 ON o.cashier = u2.id LEFT JOIN users u3 ON o.author = u3.id WHERE o.forincrement = false AND ?`;
     const getFinishedOrderSQL = `SELECT o.id, o.history, o.goods, o.creationdate, o.wentdate, o.delivereddate, o.finisheddate, o.kaspiinfo, o.countable, o.deliveryinfo, o.deliver, o.author, o.discount, o.cashier, o.payment, o.deliverystatus, o.status, o.wasReturned, o.isKaspi, o.forincrement, o.deliver as deliverId, o.cashier as cashierId, o.author as authorId, u.name as deliver, u2.name as cashier, u3.name as author  FROM archiveorders_${organization} o LEFT JOIN users u ON o.deliver = u.id LEFT JOIN users u2 ON o.cashier = u2.id LEFT JOIN users u3 ON o.author = u3.id WHERE o.forincrement = false AND ?`;
     const conn = await mysql.createConnection(dbConfig);
     const activeCandidate = (
@@ -432,9 +432,12 @@ export const issuePickup = async (req, res) => {
   try {
     const { organization, id, roles } = req.user;
     const { orderId, payment } = req.body;
+    const lockTableSQL2 = `LOCK TABLES cashboxes_${organization} WRITE, orders_${organization} WRITE`;
     const lockTableSQL = `LOCK TABLES orders_${organization} WRITE, archiveorders_${organization} WRITE`;
     const deleteOrderSQL = `DELETE from orders_${organization} WHERE id = `;
     const getOrderInfoSQL = `SELECT * from orders_${organization} WHERE id = `;
+    const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true and responsible = ${id} LIMIT 1`;
+    const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = `;
     const insertOrderSQL = `INSERT INTO archiveorders_${organization} SET ?`;
     const conn = await mysql.createConnection(dbConfig);
     await conn.query(lockTableSQL);
@@ -527,6 +530,29 @@ export const issuePickup = async (req, res) => {
     await conn.query(insertOrderSQL, finishedOrder);
     await conn.query(deleteOrderSQL + order.id);
     await conn.query(unlockTablesSQL);
+    await conn.query(lockTableSQL2);
+    const cashbox = (await conn.query(getCashboxSQL))[0][0];
+    if (!cashbox) {
+      await conn.query(unlockTablesSQL);
+      return res
+        .status(400)
+        .json({ message: "Нет открытых касс на этом аккаунте." });
+    }
+    const date = Date.now();
+    const { cash } = cashbox;
+    newPayment.forEach((item) => {
+      cash.push({
+        type: "sale",
+        amount: item.sum,
+        method: item.method,
+        comment: "Самовывоз #" + finishedOrder?.id,
+        date,
+      });
+    });
+    await conn.query(updateCashboxSQL + cashbox.id, {
+      cash: JSON.stringify(cash),
+    });
+    await conn.query(unlockTablesSQL);
     conn.end();
     res.status(200).json({
       message: `Заказ успешно выдан.`,
@@ -536,6 +562,7 @@ export const issuePickup = async (req, res) => {
   } catch (e) {
     connUnlock.query(unlockTablesSQL);
     connUnlock.end();
+    console.log(e);
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };
@@ -732,7 +759,7 @@ export const returnOrder = async (req, res) => {
       history: JSON.stringify(history),
     });
     const returnedOrder = order;
-    returnedOrder.comment = returnedOrder.id;
+    returnedOrder.comment = "#" + returnedOrder.id;
     delete returnedOrder.id;
     delete returnedOrder.creationdate;
     returnedOrder.history = JSON.stringify([
