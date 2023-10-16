@@ -546,9 +546,10 @@ export const createNewOrganization = async (req, res) => {
 };
 
 export const addCashToCashbox = async (req, res) => {
+  let connUnlock = connUnlockSample;
   try {
     const { organization, id: userId } = req.user;
-    const { amount } = req.body;
+    const { amount, comment } = req.body;
     if (isNaN(parseInt(amount))) {
       return res.status(400).json({ message: "Неверный формат суммы." });
     }
@@ -560,6 +561,7 @@ export const addCashToCashbox = async (req, res) => {
     const unlockTablesSQL = `UNLOCK TABLES`;
     const getCashboxSQL = `SELECT * FROM cashboxes_${organization} WHERE open = true LIMIT 1`;
     const conn = await mysql.createConnection(dbConfig);
+    connUnlock = conn;
     const cashbox = (await conn.query(getCashboxSQL))[0][0];
     if (!cashbox) {
       conn.end();
@@ -590,6 +592,8 @@ export const addCashToCashbox = async (req, res) => {
       message: "Наличка успешно добавлена!",
     });
   } catch (e) {
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };
@@ -649,7 +653,7 @@ export const newSpending = async (req, res) => {
 
 export const deleteSpending = async (req, res) => {
   try {
-    const { organization, id: userId, owner } = req.user;
+    const { organization, owner } = req.user;
     if (!owner) {
       return res.status(403).json({
         message: `Отказано в доступе!.`,
