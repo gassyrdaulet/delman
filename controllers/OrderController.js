@@ -135,7 +135,7 @@ export const getOrders = async (req, res) => {
   try {
     const { organization } = req.user;
     const { status: deliverystatus } = req.query;
-    const getOrdersSQL = `SELECT o.id, o.goods, o.iskaspi, o.countable, o.creationdate, o.deliveryinfo, o.status, o.deliverystatus, o.comment, o.discount, o.delivery, o.payment, o.author AS authorId, o.deliver AS deliverId, u.name AS author, u2.name AS deliver FROM orders_${organization} o LEFT JOIN users u ON o.author = u.id LEFT JOIN users u2 ON o.deliver = u2.id WHERE o.forincrement = false`;
+    const getOrdersSQL = `SELECT o.id, o.goods, o.iskaspi,o.kaspiinfo, o.countable, o.creationdate, o.deliveryinfo, o.status, o.deliverystatus, o.comment, o.discount, o.delivery, o.payment, o.author AS authorId, o.deliver AS deliverId, u.name AS author, u2.name AS deliver FROM orders_${organization} o LEFT JOIN users u ON o.author = u.id LEFT JOIN users u2 ON o.deliver = u2.id WHERE o.forincrement = false`;
     const conn = await mysql.createConnection(dbConfig);
     const orders = (
       await conn.query(
