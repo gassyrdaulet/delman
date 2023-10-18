@@ -51,6 +51,18 @@ export const getUsers = async (req, res) => {
   }
 };
 
+export const getUsersKaspiTotals = async (req, res) => {
+  try {
+    const getKaspiUsersSQL = `SELECT * FROM kaspiinfo`;
+    const conn = await mysql.createConnection(dbConfig);
+    const users = (await conn.query(getKaspiUsersSQL))[0];
+    await conn.end();
+    res.send(users);
+  } catch (e) {
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
 export const getOrgInfo = async (req, res) => {
   try {
     const { organization } = req.user;
@@ -459,7 +471,6 @@ export const createNewOrganization = async (req, res) => {
     }
     const { name } = req.body;
     const { id } = req.user;
-    console.log(name, id);
     const conn = await mysql.createConnection(dbConfig);
     const insertOrganizationSQL = `INSERT INTO organizations SET ?`;
     const organizationInfoSQL = `SELECT * FROM organizations WHERE id = `;
@@ -502,37 +513,15 @@ export const createNewOrganization = async (req, res) => {
     await conn.query(
       `CREATE TABLE archiveorders_${insertId} LIKE archiveorders`
     );
-    await conn.query(
-      `CREATE INDEX idx_wentdate ON archiveorders_${insertId} (wentdate)`
-    );
-    await conn.query(
-      `CREATE INDEX idx_creationdate ON archiveorders_${insertId} (creationdate)`
-    );
-    await conn.query(
-      `CREATE INDEX idx_delivereddate ON archiveorders_${insertId} (delivereddate)`
-    );
-    await conn.query(
-      `CREATE INDEX idx_finisheddate ON archiveorders_${insertId} (finisheddate)`
-    );
     await conn.query(`CREATE TABLE cashboxes_${insertId} LIKE cashboxes`);
     await conn.query(
-      `CREATE INDEX idx_openeddate ON cashboxes_${insertId} (openeddate)`
-    );
-    await conn.query(
-      `CREATE INDEX idx_closeddate ON cashboxes_${insertId} (closeddate)`
-    );
-    await conn.query(
       `CREATE TABLE deliveryLists_${insertId} LIKE deliveryLists`
-    );
-    await conn.query(
-      `CREATE INDEX idx_date ON deliveryLists_${insertId} (date)`
     );
     await conn.query(`CREATE TABLE goods_${insertId} LIKE goods`);
     await conn.query(`CREATE TABLE orders_${insertId} LIKE orders`);
     await conn.query(`CREATE TABLE relations_${insertId} LIKE relations`);
     await conn.query(`CREATE TABLE series_${insertId} LIKE series`);
     await conn.query(`CREATE TABLE warehouse_${insertId} LIKE warehouse`);
-    await conn.query(`CREATE INDEX idx_date ON warehouse_${insertId} (date)`);
     await conn.end();
     return res
       .json({

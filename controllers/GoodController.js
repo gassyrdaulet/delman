@@ -71,6 +71,55 @@ export const getRelations = async (req, res) => {
   }
 };
 
+export const getRelationsForKaspiTotals = async (req, res) => {
+  try {
+    const conn = await mysql.createConnection(dbConfig);
+    const relations = (await conn.query(`SELECT * FROM relations_1`))[0];
+    const goodsById = [];
+    const goods = (await conn.query(`SELECT * FROM goods_1`))[0];
+    goods.forEach((good) => (goodsById[good.id] = good));
+    const parsedPrices = [];
+    await Promise.all(
+      relations.map(async (item) => {
+        let price = 0;
+        let goodName = "";
+        let emptyRemainder = false;
+        await Promise.all(
+          item.goods.map(async (good) => {
+            const goodInfo = goodsById[good.id];
+            goodName += `${good.quantity}шт. ${
+              goodInfo?.name ? goodInfo.name : "[NO NAME]"
+            }; `;
+            const pfr = goodInfo?.remainder?.[0];
+            if (!pfr) {
+              if (goodInfo?.lastpurchase ? goodInfo?.lastpurchase : 0 === 0) {
+                emptyRemainder = true;
+                return;
+              }
+            }
+            const parsedPrice = parseInt(
+              good.quantity * (pfr ? pfr.price : goodInfo.lastpurchase)
+            );
+            if (isNaN(parsedPrice)) {
+              return;
+            }
+            price += parsedPrice;
+          })
+        );
+        if (emptyRemainder) {
+          return;
+        }
+        parsedPrices.push({ name: goodName, code: item.code, price });
+      })
+    );
+    conn.end();
+    res.send(parsedPrices);
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
 export const newRelation = async (req, res) => {
   try {
     const { organization, roles } = req.user;

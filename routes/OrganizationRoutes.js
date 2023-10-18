@@ -21,11 +21,13 @@ import {
   getSpendings,
   newSpending,
   deleteSpending,
+  getUsersKaspiTotals,
 } from "../controllers/OrganizationController.js";
 
 const router = new Router();
 
 router.get("/getusers", [auth, roles], getUsers);
+router.get("/getuserskaspitotals", getUsersKaspiTotals);
 router.post("/neworganization", [auth], createNewOrganization);
 router.get("/getinfo", [auth, roles], getOrgInfo);
 router.post("/exitorg", [auth, roles], exitOrg);

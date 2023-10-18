@@ -19,6 +19,7 @@ import {
   deleteRelation,
   editRelation,
   getGoodsByCode,
+  getRelationsForKaspiTotals,
 } from "../controllers/GoodController.js";
 import formidableMiddleware from "express-formidable";
 import { check } from "express-validator";
@@ -100,6 +101,7 @@ router.post("/fetchgroup", [auth, roles], fetchGroupInfo);
 router.get("/getbarcode", [auth, roles], getBarcode);
 router.post("/uploadxlsx", [auth, roles, formidableMiddleware()], uploadXLSX);
 router.get("/getrelations", [auth, roles], getRelations);
+router.get("/getrelationskaspitotals", getRelationsForKaspiTotals);
 router.post("/newrelation", [auth, roles], newRelation);
 router.post("/deleterelation", [auth, roles], deleteRelation);
 router.post("/editrelation", [auth, roles], editRelation);
