@@ -178,7 +178,7 @@ export const getFinishedOrdersForSummary = async (req, res) => {
     const { firstDate, secondDate, dateType } = req.body;
     const getFinishedOrdersSQL = `SELECT id, status, goods,${
       dateType ? dateType : "finisheddate"
-    },kaspiinfo, countable, deliveryinfo, deliver, delivery, author as authorId, discount, payment, wasReturned, deliverystatus, isKaspi  FROM archiveorders_${organization} WHERE ${
+    },kaspiinfo, countable, deliveryinfo, creationdate, deliver, delivery, author as authorId, discount, payment, wasReturned, deliverystatus, isKaspi  FROM archiveorders_${organization} WHERE ${
       dateType ? dateType : "finisheddate"
     } BETWEEN '${firstDate}' AND '${secondDate}'`;
     const conn = await mysql.createConnection(dbConfig);
