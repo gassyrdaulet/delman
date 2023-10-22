@@ -530,29 +530,31 @@ export const issuePickup = async (req, res) => {
     await conn.query(insertOrderSQL, finishedOrder);
     await conn.query(deleteOrderSQL + order.id);
     await conn.query(unlockTablesSQL);
-    await conn.query(lockTableSQL2);
-    const cashbox = (await conn.query(getCashboxSQL))[0][0];
-    if (!cashbox) {
-      await conn.query(unlockTablesSQL);
-      return res
-        .status(400)
-        .json({ message: "Нет открытых касс на этом аккаунте." });
-    }
-    const date = Date.now();
-    const { cash } = cashbox;
-    newPayment.forEach((item) => {
-      cash.push({
-        type: "sale",
-        amount: item.sum,
-        method: item.method,
-        comment: "Самовывоз #" + finishedOrder?.id,
-        date,
+    if (order.countable === 1) {
+      await conn.query(lockTableSQL2);
+      const cashbox = (await conn.query(getCashboxSQL))[0][0];
+      if (!cashbox) {
+        await conn.query(unlockTablesSQL);
+        return res
+          .status(400)
+          .json({ message: "Нет открытых касс на этом аккаунте." });
+      }
+      const date = Date.now();
+      const { cash } = cashbox;
+      newPayment.forEach((item) => {
+        cash.push({
+          type: "sale",
+          amount: item.sum,
+          method: item.method,
+          comment: "Самовывоз #" + finishedOrder?.id,
+          date,
+        });
       });
-    });
-    await conn.query(updateCashboxSQL + cashbox.id, {
-      cash: JSON.stringify(cash),
-    });
-    await conn.query(unlockTablesSQL);
+      await conn.query(updateCashboxSQL + cashbox.id, {
+        cash: JSON.stringify(cash),
+      });
+      await conn.query(unlockTablesSQL);
+    }
     conn.end();
     res.status(200).json({
       message: `Заказ успешно выдан.`,
