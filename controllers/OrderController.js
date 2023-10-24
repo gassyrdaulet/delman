@@ -1709,7 +1709,7 @@ export const editManager = async (req, res) => {
       });
     }
     const { managerId, orderId } = req.body;
-    const selectUserSQL = `SELECT * FROM users WHERE id = ${managerId}`;
+    const selectUserSQL = `SELECT * FROM users WHERE id = '${managerId}'`;
     const lockTablesSQL = `LOCK TABLES archiveorders_${organization} WRITE, orders_${organization} WRITE`;
     const unlockTablesSQL = `UNLOCK TABLES`;
     const updateOrderSQL = `UPDATE orders_${organization} SET ? WHERE id = `;
@@ -1782,7 +1782,7 @@ export const editDeliver = async (req, res) => {
       });
     }
     const { deliverId, orderId } = req.body;
-    const selectUserSQL = `SELECT * FROM users WHERE id = ${deliverId}`;
+    const selectUserSQL = `SELECT * FROM users WHERE id = '${deliverId}'`;
     const lockTablesSQL = `LOCK TABLES orders_${organization} WRITE`;
     const unlockTablesSQL = `UNLOCK TABLES`;
     const updateOrderSQL = `UPDATE orders_${organization} SET ? WHERE id = `;
