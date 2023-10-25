@@ -1714,7 +1714,7 @@ export const editManager = async (req, res) => {
     const unlockTablesSQL = `UNLOCK TABLES`;
     const updateOrderSQL = `UPDATE orders_${organization} SET ? WHERE id = `;
     const updateArchiveOrderSQL = `UPDATE archiveorders_${organization} SET ? WHERE id = `;
-    const selectOrderSQL = `SELECT * FROM orders_${organization} WHERE ?`;
+    const selectOrderSQL = `SELECT * FROM orders_${organization} WHERE forincrement = false AND ?`;
     const selectArchiveOrderSQL = `SELECT * FROM archiveorders_${organization} WHERE ?`;
     const conn = await mysql.createConnection(dbConfig);
     connUnlock = conn;
@@ -1744,7 +1744,7 @@ export const editManager = async (req, res) => {
     const isArchive = !order;
     const { history } = isArchive ? archiveOrder : order;
     await conn.query(
-      (isArchive ? updateArchiveOrderSQL : updateOrderSQL) + orderId,
+      (isArchive ? updateArchiveOrderSQL : updateOrderSQL) + `'${orderId}'`,
       {
         history: JSON.stringify([
           ...history,
