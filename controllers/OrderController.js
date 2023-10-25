@@ -399,7 +399,10 @@ export const issueOrder = async (req, res) => {
     const newPayment = [
       ...oldPayment,
       ...payment.map((item) => {
-        return { ...item, user: "deliver" };
+        if (item.method === "cash" || item.method === "kaspigold") {
+          return { ...item, user: "deliver" };
+        }
+        return { ...item, user: "manager" };
       }),
     ].filter((item) => {
       return item.sum !== 0;
