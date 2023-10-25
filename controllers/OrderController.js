@@ -402,7 +402,7 @@ export const issueOrder = async (req, res) => {
         if (item.method === "cash" || item.method === "kaspigold") {
           return { ...item, user: "deliver" };
         }
-        return { ...item, user: "manager" };
+        return { ...item, user: "deliverremote" };
       }),
     ].filter((item) => {
       return item.sum !== 0;
