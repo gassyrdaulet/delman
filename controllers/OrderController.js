@@ -538,9 +538,11 @@ export const issuePickup = async (req, res) => {
       const cashbox = (await conn.query(getCashboxSQL))[0][0];
       if (!cashbox) {
         await conn.query(unlockTablesSQL);
-        return res
-          .status(400)
-          .json({ message: "Нет открытых касс на этом аккаунте." });
+        res.status(200).json({
+          message: `Заказ успешно выдан.`,
+          receiptId: order.id,
+          receiptDate: now.getTime(),
+        });
       }
       const date = Date.now();
       const { cash } = cashbox;
@@ -925,6 +927,13 @@ export const recreateOrder = async (req, res) => {
     if (order.status === "new") {
       conn.end();
       res.status(400).json({ message: `Нельзя пересоздать новый заказ!` });
+      return;
+    }
+    if (order.deliverystatus === "processing") {
+      conn.end();
+      res
+        .status(400)
+        .json({ message: `Нельзя пересоздать заказ на обработке!` });
       return;
     }
     if (order.deliver !== userId) {
