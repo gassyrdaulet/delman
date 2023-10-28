@@ -380,6 +380,24 @@ export const getCashboxes = async (req, res) => {
   }
 };
 
+const repairCashboxes = async (organization, id) => {
+  try {
+    const getCashboxesSQL = `SELECT c.id, c.openeddate, c.closeddate, c.responsible, c.open, c.cash, u.name as username FROM cashboxes_${organization} c LEFT JOIN users u ON c.responsible = u.id WHERE c.id = ${id}`;
+    const updateCashboxSQL = `UPDATE cashboxes_${organization} SET ? WHERE id = ${id}`;
+    const conn = await mysql.createConnection(dbConfig);
+    const cashbox = (await conn.query(getCashboxesSQL))[0][0];
+    cashbox.cash.map((item) => {
+      item.amount = parseInt(item.amount);
+      return item;
+    });
+    await conn.query(updateCashboxSQL, { cash: JSON.stringify(cashbox.cash) });
+    await conn.end();
+  } catch (e) {
+    console.log(e);
+  }
+};
+// repairCashboxes(1, 54);
+
 export const newCashbox = async (req, res) => {
   try {
     const { organization, id: userId } = req.user;
@@ -567,7 +585,7 @@ export const addCashToCashbox = async (req, res) => {
     const date = Date.now();
     cash.push({
       type: "add",
-      amount: amount,
+      amount: parseInt(amount),
       method: "cash",
       comment,
       date,
@@ -695,7 +713,7 @@ export const removeCashFromCashbox = async (req, res) => {
     const date = Date.now();
     cash.push({
       type: "remove",
-      amount: -1 * amount,
+      amount: -1 * parseInt(amount),
       method: "cash",
       comment,
       date,
