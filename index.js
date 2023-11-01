@@ -64,6 +64,7 @@ const app = express();
 
 app.use(cors());
 app.use("/fonts", express.static("./public"));
+app.use("/img", express.static("./public/img"));
 app.use(bodyParser.json());
 app.use(
   bodyParser.urlencoded({
