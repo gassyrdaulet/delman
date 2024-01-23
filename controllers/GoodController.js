@@ -106,9 +106,6 @@ export const getRelationsForKaspiTotals = async (req, res) => {
             price += parsedPrice;
           })
         );
-        if (emptyRemainder) {
-          return;
-        }
         parsedPrices.push({ name: goodName, code: item.code, price });
       })
     );

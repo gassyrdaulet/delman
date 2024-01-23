@@ -43,8 +43,6 @@ const getIPAddress = () => {
 
 const ipAddress = getIPAddress();
 
-const requestLogs = [];
-
 dotenv.config();
 
 const privateKey = fs.readFileSync("./keys/privkey.pem", "utf8");
@@ -77,10 +75,6 @@ app.use("/api/goods/", GoodRoutes);
 app.use("/api/orders/", OrderRoutes);
 app.use("/api/warehouse/", WarehouseRoutes);
 app.use("/api/organization/", OrganizationRoutes);
-app.get("/", (req, res) => {
-  requestLogs.push({ url: req.url, date: new Date() });
-  res.status(200).send(JSON.stringify(requestLogs));
-});
 
 app.listen(PORT, () => {
   console.log(`\n\nLocal: http://${ipAddress}:${PORT}/`);

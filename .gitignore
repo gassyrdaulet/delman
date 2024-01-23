@@ -1,4 +1,7 @@
 /node_modules
 .env
+remainder.xlsx
 db.txt
 /keys
+debug.js
+output.xlsx
