@@ -79,36 +79,27 @@ export const getRelationsForKaspiTotals = async (req, res) => {
     const goods = (await conn.query(`SELECT * FROM goods_1`))[0];
     goods.forEach((good) => (goodsById[good.id] = good));
     const parsedPrices = [];
-    await Promise.all(
-      relations.map(async (item) => {
-        let price = 0;
-        let goodName = "";
-        let emptyRemainder = false;
-        await Promise.all(
-          item.goods.map(async (good) => {
-            const goodInfo = goodsById[good.id];
-            goodName += `${good.quantity}шт. ${
-              goodInfo?.name ? goodInfo.name : "[NO NAME]"
-            }; `;
-            const pfr = goodInfo?.remainder?.[0];
-            if (!pfr) {
-              if (goodInfo?.lastpurchase ? goodInfo?.lastpurchase : 0 === 0) {
-                emptyRemainder = true;
-                return;
-              }
-            }
-            const parsedPrice = parseInt(
-              good.quantity * (pfr ? pfr.price : goodInfo.lastpurchase)
-            );
-            if (isNaN(parsedPrice)) {
-              return;
-            }
-            price += parsedPrice;
-          })
+    relations.forEach((item) => {
+      let price = 0;
+      let goodName = "";
+      item.goods.forEach((good) => {
+        const goodInfo = goodsById[good.id];
+        goodName += `${good.quantity}шт. ${
+          goodInfo?.name ? goodInfo.name : "[NO NAME]"
+        }; `;
+        const pfr = goodInfo?.remainder?.[0];
+        const parsedPrice = parseInt(
+          good.quantity *
+            (pfr
+              ? pfr.price
+              : goodInfo?.lastpurchase
+              ? goodInfo.lastpurchase
+              : 0)
         );
-        parsedPrices.push({ name: goodName, code: item.code, price });
-      })
-    );
+        price += isNaN(parsedPrice) ? 0 : parsedPrice;
+      });
+      parsedPrices.push({ name: goodName, code: item.code, price });
+    });
     conn.end();
     res.send(parsedPrices);
   } catch (e) {
