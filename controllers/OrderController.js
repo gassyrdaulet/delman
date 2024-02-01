@@ -1540,13 +1540,13 @@ export const editOrder = async (req, res) => {
       });
       return;
     }
-    if (order.status !== "awaiting") {
-      conn.end();
-      res.status(400).json({
-        message: `Нельзя отредактировать этот заказ! Статус заказа должен быть [ОЖИДАЕТ ВЫДАЧИ]!`,
-      });
-      return;
-    }
+    // if (order.status !== "awaiting") {
+    //   conn.end();
+    //   res.status(400).json({
+    //     message: `Нельзя отредактировать этот заказ! Статус заказа должен быть [ОЖИДАЕТ ВЫДАЧИ]!`,
+    //   });
+    //   return;
+    // }
     if (
       order.deliverystatus !== "pickup" &&
       Object.keys(editedOrder.delivery).length === 0
