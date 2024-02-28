@@ -129,7 +129,8 @@ export const registration = async (req, res) => {
         "1234567890abcdefghijklmnopqrstuvwxyz",
         7
       );
-      const confirmationcCode = nanoidForConfirmationCode();
+      // const confirmationcCode = nanoidForConfirmationCode();
+      const confirmationcCode = "123";
       sendConfirmationEmail(name, email, confirmationcCode);
       await conn.query(insertUserSQL, {
         email: email.toLowerCase(),
@@ -142,7 +143,7 @@ export const registration = async (req, res) => {
       return res
         .json({
           message:
-            "Пользователь успешно зарегистрирован. Код для подтверждения отправлен вам на E-Mail!",
+            "Пользователь успешно зарегистрирован. Код для подтверждения: 123",
         })
         .status(200);
     }
@@ -163,7 +164,8 @@ export const sendCode = async (req, res) => {
       "1234567890abcdefghijklmnopqrstuvwxyz",
       7
     );
-    const confirmationCode = nanoidForConfirmationCode();
+    // const confirmationCode = nanoidForConfirmationCode();
+    const confirmationCode = "123";
     const sql = `SELECT * FROM users WHERE ?`;
     const sql2 = `UPDATE users SET ? WHERE email = "${email}"`;
     const conn = await mysql.createConnection(dbConfig);
@@ -188,7 +190,7 @@ export const sendCode = async (req, res) => {
     }
     sendConfirmationEmail(candidate.name, email, confirmationCode);
     await conn.query(sql2, { confirmCode: confirmationCode, codeDate });
-    res.status(200).json({ message: "Код успешно отправлен на ваш E-mail!" });
+    res.status(200).json({ message: "Код: 123" });
     conn.end();
   } catch (e) {
     console.log(e);
