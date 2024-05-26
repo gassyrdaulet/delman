@@ -21,6 +21,7 @@ import {
   editDeliver,
   getDeliveryLists,
   getFinishedOrdersForSummary,
+  newOrderBitrix,
 } from "../controllers/OrderController.js";
 
 const router = new Router();
@@ -74,6 +75,7 @@ const isDeliveryMiddleWare = (req, res, next) => {
   }
 };
 router.get("/getorders", [auth, roles], getOrders);
+router.get("/bitrixneworder", newOrderBitrix);
 router.get("/getdetails", [auth, roles], getOrderDetails);
 router.post(
   "/neworder",

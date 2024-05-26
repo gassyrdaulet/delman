@@ -4,8 +4,10 @@ import * as dotenv from "dotenv";
 import { validationResult } from "express-validator";
 import { getNameById } from "../service/UserService.js";
 import { getRemainder } from "../service/GoodService.js";
+import axios from "axios";
 
 dotenv.config();
+const bitrix_url = "";
 const { PRODUCTION } = process.env;
 const { dbConfigLocal, dbConfigProd } = config.get("dbConfig");
 const dbConfig = PRODUCTION === "true" ? dbConfigProd : dbConfigLocal;
@@ -66,7 +68,12 @@ const orderValidator = (order) => {
     }
     return { error: false };
   } catch (e) {
-    return { error: true, status: 500, message: "Ошибка в сервере:", e };
+    return {
+      error: true,
+      status: 500,
+      message: "Ошибка в сервере: " + e.message,
+      e,
+    };
   }
 };
 
@@ -675,6 +682,14 @@ export const finishOrder = async (req, res) => {
           oldStatus === "cancelled" ? "cancelled" : "finished";
         await conn.query(deleteOrderSQL + orderId);
         await conn.query(insertOrderInfoSQL, finishedOrder);
+        if (finishedOrder.bitrix_id) {
+          await axios.post(bitrix_url + "crm.deal.update", {
+            id: finishedOrder.bitrix_id,
+            fields: {
+              STAGE_ID: "WON",
+            },
+          });
+        }
         succededOrders++;
       })
     );
@@ -1249,6 +1264,232 @@ export const newOrder = async (req, res) => {
     connUnlock.query(unlockTablesSQL);
     connUnlock.end();
     console.log(e);
+    res.status(500).json({ message: "Ошибка сервера: " + e });
+  }
+};
+
+export const newOrderBitrix = async (req, res) => {
+  let connUnlock = connUnlockSample;
+  let assigned = 1;
+  try {
+    const order = {};
+    const conn1 = await mysql.createConnection(dbConfig);
+    const [goods_purchase] = await conn1.query(
+      "SELECT id, lastpurchase FROM goods_1"
+    );
+    const purchases = new Map();
+    goods_purchase.forEach((item) => {
+      purchases.set(item.id, item.lastpurchase);
+    });
+    await conn1.close();
+    const { deal_id } = req.query;
+    const { data: deal_data } = await axios.get(
+      bitrix_url + "crm.deal.get.json?ID=" + deal_id
+    );
+    const { data: products_data } = await axios.get(
+      bitrix_url + "crm.deal.productrows.get.json?ID=" + deal_id
+    );
+    const { data: contact_data } = await axios.get(
+      bitrix_url + "crm.contact.get.json?id=" + deal_data.result.CONTACT_ID
+    );
+    assigned = parseInt(deal_data.result.ASSIGNED_BY_ID);
+    const { data: user_data } = await axios.get(
+      bitrix_url + "user.get.json?ID=" + deal_data.result.ASSIGNED_BY_ID
+    );
+    const goods = [];
+    await Promise.all(
+      products_data.result.map(async (good) => {
+        const { data: product_data } = await axios.get(
+          bitrix_url + "catalog.product.get?id=" + good.PRODUCT_ID
+        );
+        const { data: price } = await axios.get(
+          bitrix_url + "catalog.price.get?id=" + good.PRODUCT_ID
+        );
+        goods.push({
+          id: parseInt(product_data.result.product.xmlId),
+          name: product_data.result.product.name,
+          price: price.result.price.price,
+          discount: { type: "KZT", amount: 0 },
+          purchase: purchases.get(parseInt(product_data.result.product.xmlId)),
+          quantity: good.QUANTITY,
+        });
+      })
+    );
+    const delivery = {};
+    const discount = { type: "KZT", amount: 0 };
+    delivery.address = deal_data.result.UF_CRM_1716635505889;
+    delivery.deliveryPriceForCustomer = parseInt(
+      deal_data.result.UF_CRM_1716640678669
+    );
+    delivery.deliveryPriceForCustomer = isNaN(delivery.deliveryPriceForCustomer)
+      ? 0
+      : delivery.deliveryPriceForCustomer;
+    delivery.deliveryPriceForDeliver = parseInt(
+      deal_data.result.UF_CRM_1716640700410
+    );
+    delivery.deliveryPriceForDeliver = isNaN(delivery.deliveryPriceForDeliver)
+      ? 0
+      : delivery.deliveryPriceForDeliver;
+    delivery.plannedDeliveryDate = Date.now() + 24 * 60 * 60 * 1000;
+    delivery.cellphone = contact_data.result.PHONE[0].VALUE;
+    order.discount = discount;
+    order.goods = goods;
+    order.delivery = delivery;
+    order.payment = [];
+    order.comment = deal_data.result.COMMENTS;
+    order.manager = parseInt(user_data.result[0].UF_USR_1716644741472);
+    order.manager = isNaN(order.manager) ? 3 : order.manager;
+    const orderValidatorResult = orderValidator(order);
+    if (orderValidatorResult.error) {
+      return res
+        .status(orderValidatorResult.status)
+        .json({ message: orderValidatorResult.message });
+    }
+    const organization = 1;
+    const lockTableSQL = `LOCK TABLES goods_${organization} WRITE`;
+    const unlockTablesSQL = `UNLOCK TABLES`;
+    const selectGoodSQL = `SELECT * FROM goods_${organization} WHERE ?`;
+    const deleteOrderSQL = `DELETE FROM orders_${organization} WHERE ?`;
+    const updateGoodSQL = `UPDATE goods_${organization} SET ? WHERE id = `;
+    const insertOrderSQL = `INSERT INTO orders_${organization} SET ?`;
+    const conn = await mysql.createConnection(dbConfig);
+    connUnlock = conn;
+    let noGoodError = false;
+    const parsedDate = new Date();
+    const [insertInfo] = await conn.query(insertOrderSQL, {
+      history: JSON.stringify([
+        {
+          action: "created",
+          user: order.manager,
+          date: Date.now(),
+        },
+      ]),
+      goods: JSON.stringify(
+        order.goods.map((item) => {
+          return {
+            id: item.id,
+            name: item.name,
+            price: item.price,
+            purchase: item.purchase,
+            quantity: item.quantity,
+            discount: item.discount,
+          };
+        })
+      ),
+      creationDate: parsedDate,
+      countable: true,
+      deliveryInfo: JSON.stringify(order.delivery),
+      author: parseInt(order.manager),
+      comment: order.comment,
+      delivery: true,
+      payment: JSON.stringify(order.payment.filter((item) => item.sum !== 0)),
+      discount: JSON.stringify(order.discount),
+      deliverystatus: "new",
+      status: "awaiting",
+      cashier: null,
+      kaspiinfo: null,
+      iskaspi: false,
+      bitrix_id: deal_id,
+    });
+    const { insertId } = insertInfo;
+
+    await conn.query(lockTableSQL);
+    const results = [];
+    await Promise.all(
+      order.goods.map(async (item) => {
+        const { quantity, id } = item;
+        const goodInfo = (await conn.query(selectGoodSQL, { id }))[0][0];
+        const remainder = goodInfo?.remainder;
+        if (!remainder || remainder?.length === 0) {
+          noGoodError = true;
+          return;
+        }
+        const temp = remainder.reverse();
+        const difference = parseInt(temp[0].quantity) - quantity;
+        let lastDifference = 0 + difference;
+        if (difference >= 0) {
+          temp[0].quantity = difference;
+        } else {
+          temp[0].quantity = 0;
+          for (let i = 1; i <= temp.length; i++) {
+            if (!temp[i]) {
+              if (lastDifference < 0) {
+                noGoodError = true;
+                return;
+              }
+            } else {
+              lastDifference =
+                parseInt(temp[i].quantity) - Math.abs(lastDifference);
+              if (lastDifference >= 0) {
+                temp[i].quantity = lastDifference;
+                break;
+              } else {
+                temp[i].quantity = 0;
+              }
+            }
+          }
+        }
+        const result = temp
+          .filter((item) => {
+            return item.quantity !== 0;
+          })
+          .reverse();
+        results.push({
+          id,
+          info: {
+            remainder: result,
+            piecesSold: parseInt(goodInfo.piecesSold) + quantity,
+          },
+        });
+      })
+    );
+    if (noGoodError) {
+      await conn.query(unlockTablesSQL);
+      await conn.query(deleteOrderSQL, { id: insertId });
+      conn.end();
+      return res.status(400).json({
+        message: "Ошибка! Товара недостаточно либо его нет в наличии.",
+      });
+    }
+    await Promise.all(
+      results.map(async (result) => {
+        await conn.query(updateGoodSQL + result.id, {
+          remainder: JSON.stringify(result.info.remainder),
+          piecesSold: result.info.piecesSold,
+        });
+      })
+    );
+    await conn.query(unlockTablesSQL);
+    conn.end();
+    await axios.post(
+      bitrix_url + "im.notify",
+      {},
+      {
+        params: {
+          to: deal_data.result.ASSIGNED_BY_ID,
+          message: "Заказ успешно добавлен в SHOP!",
+        },
+      }
+    );
+    res.status(200).json({ message: "OK" });
+  } catch (e) {
+    connUnlock.query(unlockTablesSQL);
+    connUnlock.end();
+    console.log(e.message);
+    try {
+      await axios.post(
+        bitrix_url + "im.notify",
+        {},
+        {
+          params: {
+            to: assigned,
+            message: "Не удалось добавить заказ в SHOP: " + e.message,
+          },
+        }
+      );
+    } catch {
+      console.log("notify error");
+    }
     res.status(500).json({ message: "Ошибка сервера: " + e });
   }
 };
