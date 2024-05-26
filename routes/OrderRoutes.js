@@ -75,7 +75,7 @@ const isDeliveryMiddleWare = (req, res, next) => {
   }
 };
 router.get("/getorders", [auth, roles], getOrders);
-router.get("/bitrixneworder", newOrderBitrix);
+router.post("/bitrixneworder", newOrderBitrix);
 router.get("/getdetails", [auth, roles], getOrderDetails);
 router.post(
   "/neworder",
